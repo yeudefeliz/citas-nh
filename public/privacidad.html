@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<!-- Política de privacidad — Citas NH (bilingüe ES/EN con toggle) -->
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Política de privacidad — Citas NH</title>
+  <meta name="theme-color" content="#E11D48" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header id="topbar">
+    <span class="logo-heart" aria-hidden="true">❤</span>
+    <h1>Citas NH</h1>
+  </header>
+
+  <main id="app" class="legal">
+    <div class="lang-toggle">
+      <button class="btn btn-sm" data-l="es">Español</button>
+      <button class="btn btn-sm" data-l="en">English</button>
+    </div>
+
+    <!-- ================= ESPAÑOL ================= -->
+    <article id="legal-es">
+      <h2>Política de privacidad</h2>
+      <p>Última actualización: septiembre de 2026</p>
+
+      <h3>1. Qué datos recogemos</h3>
+      <ul>
+        <li><strong>Cuenta:</strong> correo electrónico, nombre para mostrar, fecha de nacimiento y código postal (ZIP).</li>
+        <li><strong>Perfil:</strong> bio, género, lo que buscas, idiomas, intereses, pueblo y las fotos que subas (máximo 3).</li>
+        <li><strong>Actividad:</strong> tus "me gusta", matches, mensajes y reportes.</li>
+      </ul>
+
+      <h3>2. Para qué los usamos</h3>
+      <p>Solo para operar la app: mostrarte perfiles, crear matches, entregar mensajes y mantener la comunidad segura (revisión de reportes).</p>
+
+      <h3>3. Tus fotos</h3>
+      <p>Las fotos que subas se guardan para mostrarlas en tu perfil y en Descubrir. Puedes borrarlas cuando quieras desde tu perfil.</p>
+
+      <h3>4. No vendemos tus datos</h3>
+      <p>No vendemos ni alquilamos tu información personal a terceros.</p>
+
+      <h3>5. Tus derechos: ver, corregir y borrar</h3>
+      <p>Puedes editar tu perfil cuando quieras. Para borrar <strong>todos</strong> tus datos (cuenta, perfil, fotos, matches y mensajes), ve a <strong>Ajustes → Borrar mi cuenta</strong> y escribe la palabra de confirmación. El borrado es permanente.</p>
+
+      <h3>6. Seguridad</h3>
+      <p>Usamos medidas razonables para proteger tus datos, pero ningún sistema es 100% seguro. Usa una contraseña única y no la compartas.</p>
+
+      <h3>7. Menores</h3>
+      <p>Citas NH es solo para mayores de 18 años. No recogemos datos de menores a propósito; si detectamos una cuenta de un menor, la eliminamos.</p>
+    </article>
+
+    <!-- ================= ENGLISH ================= -->
+    <article id="legal-en" hidden>
+      <h2>Privacy Policy</h2>
+      <p>Last updated: September 2026</p>
+
+      <h3>1. What data we collect</h3>
+      <ul>
+        <li><strong>Account:</strong> email, display name, date of birth, and ZIP code.</li>
+        <li><strong>Profile:</strong> bio, gender, what you're looking for, languages, interests, town, and the photos you upload (max 3).</li>
+        <li><strong>Activity:</strong> your likes, matches, messages, and reports.</li>
+      </ul>
+
+      <h3>2. How we use it</h3>
+      <p>Only to run the app: showing you profiles, creating matches, delivering messages, and keeping the community safe (reviewing reports).</p>
+
+      <h3>3. Your photos</h3>
+      <p>Photos you upload are stored to display them on your profile and in Discover. You can delete them anytime from your profile.</p>
+
+      <h3>4. We don't sell your data</h3>
+      <p>We don't sell or rent your personal information to third parties.</p>
+
+      <h3>5. Your rights: view, correct, delete</h3>
+      <p>You can edit your profile anytime. To delete <strong>all</strong> your data (account, profile, photos, matches, and messages), go to <strong>Settings → Delete my account</strong> and type the confirmation word. Deletion is permanent.</p>
+
+      <h3>6. Security</h3>
+      <p>We use reasonable measures to protect your data, but no system is 100% secure. Use a unique password and don't share it.</p>
+
+      <h3>7. Minors</h3>
+      <p>Citas NH is for adults 18+ only. We don't knowingly collect data from minors; if we find a minor's account, we delete it.</p>
+    </article>
+
+    <a class="back-link" href="/">← Citas NH</a>
+  </main>
+
+  <script>
+    // Muestra el bloque en el idioma guardado ("citasnh-lang"), con toggle.
+    (function () {
+      var saved = localStorage.getItem("citasnh-lang") || "es";
+      function show(l) {
+        l = l === "en" ? "en" : "es";
+        document.getElementById("legal-es").hidden = l !== "es";
+        document.getElementById("legal-en").hidden = l !== "en";
+        document.documentElement.lang = l;
+        document.querySelectorAll("[data-l]").forEach(function (b) {
+          b.classList.toggle("btn-primary", b.getAttribute("data-l") === l);
+          b.classList.toggle("btn-ghost", b.getAttribute("data-l") !== l);
+        });
+      }
+      document.querySelectorAll("[data-l]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          localStorage.setItem("citasnh-lang", b.getAttribute("data-l"));
+          show(b.getAttribute("data-l"));
+        });
+      });
+      show(saved);
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<!-- Términos de uso — Citas NH (bilingüe ES/EN con toggle) -->
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Términos de uso — Citas NH</title>
+  <meta name="theme-color" content="#E11D48" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header id="topbar">
+    <span class="logo-heart" aria-hidden="true">❤</span>
+    <h1>Citas NH</h1>
+  </header>
+
+  <main id="app" class="legal">
+    <div class="lang-toggle">
+      <button class="btn btn-sm" data-l="es">Español</button>
+      <button class="btn btn-sm" data-l="en">English</button>
+    </div>
+
+    <!-- ================= ESPAÑOL ================= -->
+    <article id="legal-es">
+      <h2>Términos de uso</h2>
+      <p>Última actualización: septiembre de 2026</p>
+
+      <h3>1. Solo mayores de 18 años</h3>
+      <p>Citas NH es exclusivamente para personas de 18 años o más. Al registrarte confirmas que tienes al menos 18 años. Las cuentas de menores se eliminan.</p>
+
+      <h3>2. Trato con respeto</h3>
+      <p>Está prohibido el acoso, los insultos, las amenazas, el spam y cualquier conducta abusiva hacia otros usuarios. Queremos una comunidad segura y amable.</p>
+
+      <h3>3. Contenido permitido</h3>
+      <p>Está prohibido publicar o enviar contenido sexual explícito no consentido, fotos de otras personas sin su permiso, o cualquier material ilegal. Las fotos de perfil deben ser tuyas o de algo que te represente.</p>
+
+      <h3>4. Reportes</h3>
+      <p>Todos los reportes se revisan. Si una cuenta viola estas reglas, puede ser suspendida o eliminada sin previo aviso. También puedes bloquear a cualquier usuario desde el chat o desde Ajustes.</p>
+
+      <h3>5. Cuida tu seguridad</h3>
+      <p>Si decides conocer a alguien en persona, hazlo en un lugar público, avisa a alguien de confianza y nunca compartas datos bancarios ni envíes dinero a desconocidos.</p>
+
+      <h3>6. Borrar tu cuenta y tus datos</h3>
+      <p>Puedes borrar tu cuenta cuando quieras desde <strong>Ajustes → Borrar mi cuenta</strong> (te pediremos confirmación por escrito). Al hacerlo se eliminan tu perfil, tus fotos, tus matches y tus mensajes de forma permanente.</p>
+
+      <h3>7. Cambios</h3>
+      <p>Podemos actualizar estos términos; la fecha de arriba indica la última versión.</p>
+    </article>
+
+    <!-- ================= ENGLISH ================= -->
+    <article id="legal-en" hidden>
+      <h2>Terms of Use</h2>
+      <p>Last updated: September 2026</p>
+
+      <h3>1. Adults 18+ only</h3>
+      <p>Citas NH is for people 18 years or older only. By signing up you confirm you are at least 18. Accounts belonging to minors are deleted.</p>
+
+      <h3>2. Treat others with respect</h3>
+      <p>Harassment, insults, threats, spam, and any abusive behavior toward other users are prohibited. We want a safe, kind community.</p>
+
+      <h3>3. Allowed content</h3>
+      <p>Posting or sending non-consensual sexually explicit content, photos of other people without their permission, or any illegal material is prohibited. Profile photos must be of you or something that represents you.</p>
+
+      <h3>4. Reports</h3>
+      <p>All reports are reviewed. Accounts that break these rules may be suspended or deleted without notice. You can also block any user from the chat or from Settings.</p>
+
+      <h3>5. Stay safe</h3>
+      <p>If you decide to meet someone in person, do it in a public place, tell someone you trust, and never share banking details or send money to strangers.</p>
+
+      <h3>6. Deleting your account and your data</h3>
+      <p>You can delete your account at any time from <strong>Settings → Delete my account</strong> (we'll ask for written confirmation). This permanently removes your profile, photos, matches, and messages.</p>
+
+      <h3>7. Changes</h3>
+      <p>We may update these terms; the date above shows the latest version.</p>
+    </article>
+
+    <a class="back-link" href="/">← Citas NH</a>
+  </main>
+
+  <script>
+    // Muestra el bloque en el idioma guardado ("citasnh-lang"), con toggle.
+    (function () {
+      var saved = localStorage.getItem("citasnh-lang") || "es";
+      function show(l) {
+        l = l === "en" ? "en" : "es";
+        document.getElementById("legal-es").hidden = l !== "es";
+        document.getElementById("legal-en").hidden = l !== "en";
+        document.documentElement.lang = l;
+        document.querySelectorAll("[data-l]").forEach(function (b) {
+          b.classList.toggle("btn-primary", b.getAttribute("data-l") === l);
+          b.classList.toggle("btn-ghost", b.getAttribute("data-l") !== l);
+        });
+      }
+      document.querySelectorAll("[data-l]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          localStorage.setItem("citasnh-lang", b.getAttribute("data-l"));
+          show(b.getAttribute("data-l"));
+        });
+      });
+      show(saved);
+    })();
+  </script>
+</body>
+</html>

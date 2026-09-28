@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!-- ============================================================
+  Citas NH — SPA (aplicación de una sola página)
+  ------------------------------------------------------------
+  Estructura:
+    <header>  barra superior con el nombre de la app
+    <main>    aquí app.js dibuja cada vista (login, descubrir…)
+    <nav>     navegación inferior (solo cuando hay sesión)
+  Todo el texto visible sale del diccionario i18n (js/i18n/*.js)
+  usando el atributo data-i18n. NADA de texto hardcodeado.
+============================================================= -->
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <!-- viewport-fit=cover: la app usa toda la pantalla del teléfono -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Citas NH</title>
+  <meta name="description" content="Citas NH — Conoce gente hispana en New Hampshire." />
+
+  <!-- PWA: color del tema y manifest -->
+  <meta name="theme-color" content="#E11D48" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Citas NH" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <!-- Barra superior -->
+  <header id="topbar">
+    <span class="logo-heart" aria-hidden="true">❤</span>
+    <h1 data-i18n="appName">Citas NH</h1>
+  </header>
+
+  <!-- Aquí se dibuja la vista activa -->
+  <main id="app" aria-live="polite"></main>
+
+  <!-- Navegación inferior (visible solo con sesión iniciada) -->
+  <nav id="bottomnav" hidden>
+    <a href="#/descubrir" data-route="descubrir"><span aria-hidden="true">🔥</span><span data-i18n="nav_discover">Descubrir</span></a>
+    <a href="#/matches" data-route="matches"><span aria-hidden="true">💬</span><span data-i18n="nav_matches">Matches</span></a>
+    <a href="#/perfil" data-route="perfil"><span aria-hidden="true">👤</span><span data-i18n="nav_profile">Perfil</span></a>
+    <a href="#/ajustes" data-route="ajustes"><span aria-hidden="true">⚙️</span><span data-i18n="nav_settings">Ajustes</span></a>
+  </nav>
+
+  <!-- Diccionarios de idioma (formato: window.I18N / window.I18N_EN) -->
+  <script src="/js/i18n/es.js"></script>
+  <script src="/js/i18n/en.js"></script>
+  <!-- Lógica de la app -->
+  <script src="/js/app.js"></script>
+</body>
+</html>

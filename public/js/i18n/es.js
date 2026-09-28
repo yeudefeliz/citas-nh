@@ -1,0 +1,138 @@
+// ============================================================
+// Citas NH — Diccionario de textos en ESPAÑOL
+// ------------------------------------------------------------
+// REGLA: todo el texto visible de la app sale de aquí.
+// Si quieres cambiar una palabra de la interfaz, cámbiala AQUÍ,
+// no en el HTML ni en app.js.
+// window.I18N es el diccionario por defecto (español).
+// en.js define window.I18N_EN con EXACTAMENTE las mismas claves.
+// ============================================================
+window.I18N = {
+  // ---- Generales ----
+  appName: "Citas NH",
+  nav_discover: "Descubrir",
+  nav_matches: "Matches",
+  nav_profile: "Perfil",
+  nav_settings: "Ajustes",
+  common_cancel: "Cancelar",
+  common_confirm: "Confirmar",
+  common_ok: "Aceptar",
+  common_loading: "Cargando…",
+  common_back: "Atrás",
+  common_save: "Guardar",
+  common_send: "Enviar",
+  common_delete: "Borrar",
+
+  // ---- Login ----
+  login_title: "Inicia sesión",
+  login_email: "Correo electrónico",
+  login_password: "Contraseña",
+  login_submit: "Entrar",
+  login_noAccount: "¿No tienes cuenta?",
+  login_goRegister: "Regístrate",
+
+  // ---- Registro ----
+  register_title: "Crea tu cuenta",
+  register_email: "Correo electrónico",
+  register_password: "Contraseña",
+  register_name: "Nombre para mostrar",
+  register_dob: "Fecha de nacimiento",
+  register_zip: "Código postal (ZIP)",
+  register_submit: "Crear cuenta",
+  register_haveAccount: "¿Ya tienes cuenta?",
+  register_goLogin: "Inicia sesión",
+  register_adultsOnly: "Solo para mayores de 18 años.",
+
+  // ---- Errores del backend (se muestran traducidos) ----
+  err_INVALID_EMAIL: "Ese correo no parece válido.",
+  err_WEAK_PASSWORD: "La contraseña es muy débil.",
+  err_INVALID_NAME: "El nombre no es válido.",
+  err_INVALID_DOB: "La fecha de nacimiento no es válida.",
+  err_UNDERAGE: "Debes tener 18 años o más para usar Citas NH.",
+  err_INVALID_ZIP: "El código postal no es válido.",
+  err_EMAIL_TAKEN: "Ese correo ya está registrado.",
+  err_INVALID_CREDENTIALS: "Correo o contraseña incorrectos.",
+  err_BLOCKED: "No puedes enviar mensajes a este usuario.",
+  err_TOO_MANY_PHOTOS: "Solo puedes subir 3 fotos.",
+  err_GENERIC: "Algo salió mal. Inténtalo de nuevo.",
+  err_NETWORK: "Sin conexión. Revisa tu internet.",
+
+  // ---- Descubrir ----
+  discover_title: "Descubrir",
+  discover_empty: "No hay más personas por ahora. Vuelve más tarde 💛",
+  discover_like: "Me gusta",
+  discover_pass: "Pasar",
+  discover_interests: "Intereses",
+
+  // ---- Match ----
+  match_title: "¡Es un match! 🎉",
+  match_subtitle: "A {name} también le gustas.",
+  match_chat: "Enviar mensaje",
+  match_keep: "Seguir descubriendo",
+
+  // ---- Matches ----
+  matches_title: "Tus matches",
+  matches_empty: "Aún no tienes matches. ¡Sigue descubriendo! 💘",
+
+  // ---- Chat ----
+  chat_placeholder: "Escribe un mensaje…",
+  chat_empty: "Sé la primera persona en saludar 👋",
+  chat_report: "Reportar",
+  chat_block: "Bloquear",
+  chat_reportConfirm: "¿Reportar a este usuario?",
+  chat_reportReason: "Motivo del reporte:",
+  chat_reportReasonPh: "Describe lo que pasó…",
+  chat_reportSent: "Reporte enviado. Lo revisaremos.",
+  chat_blockConfirm: "¿Bloquear a este usuario? No podrá escribirte más.",
+  chat_blockDone: "Usuario bloqueado.",
+
+  // ---- Perfil ----
+  profile_title: "Mi perfil",
+  profile_bio: "Sobre mí",
+  profile_bioPh: "Cuéntanos quién eres…",
+  profile_gender: "Género",
+  profile_lookingFor: "Busco",
+  profile_languages: "Idiomas",
+  profile_interests: "Intereses",
+  profile_interestsHint: "Sepáralos por coma",
+  profile_town: "Pueblo / Ciudad (NH)",
+  profile_photos: "Fotos (máx. 3)",
+  profile_addPhoto: "Agregar foto",
+  profile_saved: "Perfil guardado ✅",
+  profile_deletePhotoConfirm: "¿Borrar esta foto?",
+  profile_uploading: "Subiendo foto…",
+  gender_man: "Hombre",
+  gender_woman: "Mujer",
+  gender_nonbinary: "No binario",
+  gender_unspecified: "Prefiero no decir",
+  looking_friendship: "Amistad",
+  looking_dating: "Relación",
+  looking_casual: "Algo casual",
+  looking_unsure: "Aún no lo sé",
+  lang_es: "Español",
+  lang_en: "English",
+  lang_pt: "Português",
+  lang_fr: "Français",
+  lang_other: "Otro(s)",
+
+  // ---- Ajustes ----
+  settings_title: "Ajustes",
+  settings_language: "Idioma",
+  settings_blocked: "Usuarios bloqueados",
+  settings_blockedEmpty: "No has bloqueado a nadie.",
+  settings_unblock: "Desbloquear",
+  settings_unblockConfirm: "¿Desbloquear a este usuario?",
+  settings_terms: "Términos de uso",
+  settings_privacy: "Política de privacidad",
+  settings_logout: "Cerrar sesión",
+  settings_logoutConfirm: "¿Cerrar sesión?",
+  settings_delete: "Borrar mi cuenta",
+  settings_deleteTitle: "Borrar cuenta",
+  settings_deleteWarning: "Esto borra tu cuenta y todos tus datos para siempre. No se puede deshacer.",
+  settings_deletePrompt: "Para confirmar, escribe la palabra:",
+  settings_deleteWord: "BORRAR",
+  settings_deleteWrong: "La palabra no coincide. Inténtalo de nuevo.",
+  settings_deleteConfirm: "¿Seguro? Esta es tu última oportunidad.",
+  settings_deleteDone: "Cuenta borrada. ¡Te vamos a extrañar!",
+  settings_version: "Citas NH · v1.0",
+};
