@@ -12,6 +12,17 @@ require('./db');
 
 const app = express();
 
+// --- Webhook de Stripe ---------------------------------------------------
+// Necesita el cuerpo RAW (sin parsear) para verificar la firma, así que se
+// registra ANTES de express.json(): si el JSON se parsea primero, la firma
+// ya no coincide y Stripe rechaza el webhook.
+const billing = require('./routes/billing');
+app.post(
+  '/api/billing/webhook',
+  express.raw({ type: 'application/json' }),
+  billing.webhook
+);
+
 // El cuerpo JSON de las peticiones no puede pasar de 1 MB.
 app.use(express.json({ limit: '1mb' }));
 
@@ -38,6 +49,7 @@ app.use('/api/discover', require('./routes/discover'));
 app.use('/api', require('./routes/matches')); // POST /api/votes, GET /api/matches
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api', require('./routes/social')); // /api/blocks, /api/reports
+app.use('/api', billing.router); // /api/billing/*, /api/admirers
 
 // --- Páginas legales ---------------------------------------------------
 // El frontend creará public/terminos.html y public/privacidad.html.

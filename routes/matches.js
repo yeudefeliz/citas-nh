@@ -5,6 +5,10 @@ const express = require('express');
 const db = require('../db');
 const { auth } = require('../middleware/auth');
 const { calcularEdad } = require('../utils/validacion');
+const { esPremium } = require('./billing');
+
+// Likes por día para cuentas gratis (los premium no tienen límite).
+const FREE_LIKES_POR_DIA = 10;
 
 const router = express.Router();
 
@@ -41,6 +45,18 @@ router.post('/votes', auth, (req, res) => {
     .get(yo, targetUserId);
   if (yaVoto) {
     return res.status(400).json({ error: 'ALREADY_VOTED' });
+  }
+
+  // Límite diario de likes para cuentas gratis (los premium son ilimitados).
+  if (vote === 'like' && !esPremium(yo)) {
+    const dadosHoy = db
+      .prepare(
+        "SELECT COUNT(*) AS c FROM votes WHERE voter_id = ? AND vote = 'like' AND date(created_at) = date('now')"
+      )
+      .get(yo).c;
+    if (dadosHoy >= FREE_LIKES_POR_DIA) {
+      return res.status(403).json({ error: 'LIKE_LIMIT_REACHED' });
+    }
   }
 
   db.prepare(

@@ -359,3 +359,47 @@ legend { font-weight: 600; font-size: .92rem; padding: 0 6px; }
   #bottomnav { left: 50%; right: auto; width: 520px; transform: translateX(-50%); border-radius: 20px 20px 0 0; }
   .card-photo { height: 440px; }
 }
+
+/* ---------- Premium ---------- */
+.premium-banner {
+  display: block;
+  text-align: center;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #3b2f04;
+  font-weight: 700;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  text-decoration: none;
+}
+.premium-card {
+  background: var(--card);
+  border: 2px solid #fbbf24;
+  border-radius: var(--radius);
+  padding: 20px;
+  margin: 12px 0;
+}
+.premium-card.active { border-color: var(--brand); text-align: center; }
+.premium-check { font-size: 40px; }
+.premium-list { list-style: none; padding: 0; margin: 0 0 12px; }
+.premium-list li { padding: 8px 0; font-size: 17px; border-bottom: 1px solid var(--line); }
+.premium-list li:last-child { border-bottom: none; }
+.premium-price { font-size: 20px; font-weight: 800; text-align: center; margin: 12px 0; }
+.small { font-size: 13px; }
+
+/* ---------- Admiradores ---------- */
+.section-sub { margin: 18px 0 8px; font-size: 18px; }
+.admirers-locked {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
+  border: 1px dashed #fbbf24;
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 14px;
+  text-decoration: none;
+  color: var(--ink);
+}
+.admirers-count { font-size: 22px; font-weight: 800; white-space: nowrap; }
+.admirers-locked .chev { margin-left: auto; color: var(--muted); }

@@ -141,6 +141,38 @@ function showFormError(id, err) {
   }
 }
 
+// Estado del premium (se cachea para no pedirlo en cada vista).
+async function billingStatus(force) {
+  if (!force && cache.billing) return cache.billing;
+  try {
+    // GET /api/billing/status → {isPremium, premiumUntil, stripeConfigured}
+    cache.billing = await api("/api/billing/status");
+  } catch (err) {
+    cache.billing = { isPremium: false, stripeConfigured: false };
+  }
+  return cache.billing;
+}
+
+// Modal que invita al premium (límite de likes, ver admiradores, etc.).
+function showPremiumModal() {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-heart" aria-hidden="true">👑</div>
+      <h2>${t("premium_modalTitle")}</h2>
+      <p>${t("premium_modalText")}</p>
+      <button class="btn btn-primary" id="pm-go">${t("premium_cta")}</button>
+      <button class="btn btn-ghost" id="pm-no">${t("premium_notNow")}</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector("#pm-go").addEventListener("click", () => {
+    overlay.remove();
+    location.hash = "#/premium";
+  });
+  overlay.querySelector("#pm-no").addEventListener("click", () => overlay.remove());
+}
+
 /* ---------- 4. Router ---------- */
 const app = document.getElementById("app");
 const bottomnav = document.getElementById("bottomnav");
@@ -183,13 +215,16 @@ function route() {
     renderChat(decodeURIComponent(hash.slice("#/chat/".length)));
     return;
   }
-  switch (hash) {
+  // La ruta puede traer query (?estado=exito): separamos para el switch.
+  const ruta = hash.split("?")[0];
+  switch (ruta) {
     case "#/login": return renderLogin();
     case "#/registro": return renderRegister();
     case "#/descubrir": return renderDiscover();
     case "#/matches": return renderMatches();
     case "#/perfil": return renderProfile();
     case "#/ajustes": return renderSettings();
+    case "#/premium": return renderPremium();
     default: location.hash = "#/descubrir";
   }
 }
@@ -330,8 +365,15 @@ async function renderDiscover() {
     .map((i) => `<span class="tag">${esc(i)}</span>`)
     .join("");
 
+  // Banner premium solo si Stripe está configurado y no soy premium.
+  const billing = await billingStatus();
+  const upsell = !billing.isPremium && billing.stripeConfigured
+    ? `<a class="premium-banner" href="#/premium">👑 ${t("premium_banner")}</a>`
+    : "";
+
   app.innerHTML = `
     <section class="discover">
+      ${upsell}
       <article class="card">
         ${photo
           ? `<img class="card-photo" src="${esc(photo)}" alt="">`
@@ -364,6 +406,11 @@ async function renderDiscover() {
         renderDiscover(); // siguiente tarjeta
       }
     } catch (err) {
+      // Límite diario de likes → invitar al premium en vez de un toast seco.
+      if (err && err.code === "LIKE_LIMIT_REACHED") {
+        showPremiumModal();
+        return;
+      }
       toast(apiErrorMessage(err));
     }
   };
@@ -398,39 +445,175 @@ function showMatchModal(name, matchId) {
 async function renderMatches() {
   app.innerHTML = `<section><h2>${t("matches_title")}</h2><p class="muted">${t("common_loading")}</p></section>`;
 
+  let admirers = { locked: true, count: 0 };
   try {
-    // GET /api/matches → {matches:[{matchId, user:{userId,displayName,age,town,photos}, createdAt, lastMessage}]}
+    // GET /api/matches → {matches:[{matchId, user:{...}, createdAt, lastMessage}]}
     const data = await api("/api/matches");
     cache.matches = data.matches || [];
+    // GET /api/admirers → {locked:true,count} o {locked:false,admirers:[...]}
+    admirers = await api("/api/admirers");
   } catch (err) {
     app.innerHTML = errorHtml(err);
     return;
   }
 
-  if (!cache.matches.length) {
-    app.innerHTML = `<section><h2>${t("matches_title")}</h2><div class="empty">${t("matches_empty")}</div></section>`;
+  // "Les gustas": gratis ve el conteo bloqueado, premium ve las tarjetas.
+  let admirersHtml = "";
+  if (admirers.locked) {
+    if (admirers.count > 0) {
+      admirersHtml = `<a class="admirers-locked" href="#/premium">
+        <span class="admirers-count">💛 ${esc(String(admirers.count))}</span>
+        <span>${t("admirers_locked")}</span>
+        <span class="chev" aria-hidden="true">›</span>
+      </a>`;
+    }
+  } else if ((admirers.admirers || []).length) {
+    admirersHtml =
+      `<h3 class="section-sub">💛 ${t("admirers_title")}</h3><ul class="match-list">` +
+      admirers.admirers
+        .map((a) => {
+          const photo = a.photos && a.photos[0];
+          return `<li><div class="match-item">
+            ${photo
+              ? `<img src="${esc(photo)}" alt="">`
+              : `<span class="avatar-fallback" aria-hidden="true">❤</span>`}
+            <span class="match-info">
+              <strong>${esc(a.displayName)}, ${esc(a.age)}</strong>
+              <small class="muted">${esc(a.town || "")}</small>
+            </span>
+            <button class="btn btn-sm btn-primary" data-like-back="${esc(a.userId)}">❤</button>
+          </div></li>`;
+        })
+        .join("") +
+      `</ul>`;
+  }
+
+  const listHtml = cache.matches.length
+    ? `<ul class="match-list">` +
+      cache.matches
+        .map((m) => {
+          const u = m.user || {};
+          const photo = u.photos && u.photos[0];
+          return `<li><a class="match-item" href="#/chat/${encodeURIComponent(m.matchId)}">
+            ${photo
+              ? `<img src="${esc(photo)}" alt="">`
+              : `<span class="avatar-fallback" aria-hidden="true">❤</span>`}
+            <span class="match-info">
+              <strong>${esc(u.displayName)}, ${esc(u.age)}</strong>
+              <small class="muted">${esc(m.lastMessage || u.town || "")}</small>
+            </span>
+            <span class="chev" aria-hidden="true">›</span>
+          </a></li>`;
+        })
+        .join("") +
+      `</ul>`
+    : `<div class="empty">${t("matches_empty")}</div>`;
+
+  app.innerHTML = `<section><h2>${t("matches_title")}</h2>${admirersHtml}${listHtml}</section>`;
+
+  // Botones "devolver like" en la lista de admiradores.
+  app.querySelectorAll("[data-like-back]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        // POST /api/votes {targetUserId, vote:"like"} → posible match
+        await api("/api/votes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            targetUserId: Number(btn.getAttribute("data-like-back")),
+            vote: "like",
+          }),
+        });
+        renderMatches();
+      } catch (err) {
+        toast(apiErrorMessage(err));
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+/* ----- #/premium ----- */
+async function renderPremium() {
+  // Regreso de Stripe: ?estado=exito o ?estado=cancelado.
+  const estado = (location.hash.split("?")[1] || "").includes("estado=exito")
+    ? "exito"
+    : (location.hash.split("?")[1] || "").includes("estado=cancelado")
+      ? "cancelado"
+      : null;
+
+  app.innerHTML = `<section class="premium"><h2>👑 ${t("premium_title")}</h2><p class="muted">${t("common_loading")}</p></section>`;
+
+  const billing = await billingStatus(true); // forzar: pudo cambiar en Stripe
+
+  if (estado === "exito") {
+    toast(t("premium_success"));
+    history.replaceState(null, "", "#/premium"); // limpia el query
+  } else if (estado === "cancelado") {
+    toast(t("premium_cancelled"));
+    history.replaceState(null, "", "#/premium");
+  }
+
+  // Stripe sin configurar → aviso amable (el dueño lo activa luego).
+  if (!billing.stripeConfigured) {
+    app.innerHTML = `<section class="premium"><h2>👑 ${t("premium_title")}</h2>
+      <div class="empty">${t("premium_soon")}</div>
+      <p class="center"><a class="btn btn-ghost" href="#/descubrir">${t("common_back")}</a></p>
+    </section>`;
     return;
   }
 
-  app.innerHTML =
-    `<section><h2>${t("matches_title")}</h2><ul class="match-list">` +
-    cache.matches
-      .map((m) => {
-        const u = m.user || {};
-        const photo = u.photos && u.photos[0];
-        return `<li><a class="match-item" href="#/chat/${encodeURIComponent(m.matchId)}">
-          ${photo
-            ? `<img src="${esc(photo)}" alt="">`
-            : `<span class="avatar-fallback" aria-hidden="true">❤</span>`}
-          <span class="match-info">
-            <strong>${esc(u.displayName)}, ${esc(u.age)}</strong>
-            <small class="muted">${esc(m.lastMessage || u.town || "")}</small>
-          </span>
-          <span class="chev" aria-hidden="true">›</span>
-        </a></li>`;
-      })
-      .join("") +
-    `</ul></section>`;
+  // Ya es premium → mostrar estado y portal.
+  if (billing.isPremium) {
+    app.innerHTML = `<section class="premium"><h2>👑 ${t("premium_title")}</h2>
+      <div class="premium-card active">
+        <div class="premium-check" aria-hidden="true">✅</div>
+        <p><strong>${t("premium_active")}</strong></p>
+        ${billing.premiumUntil ? `<p class="muted">${t("premium_until", { date: esc(billing.premiumUntil.slice(0, 10)) })}</p>` : ""}
+        <button class="btn btn-ghost" id="btn-portal">${t("premium_manage")}</button>
+      </div>
+      <p class="center"><a class="btn btn-ghost" href="#/descubrir">${t("common_back")}</a></p>
+    </section>`;
+    document.getElementById("btn-portal").addEventListener("click", async () => {
+      try {
+        // POST /api/billing/portal → {url} (portal de Stripe)
+        const data = await api("/api/billing/portal", { method: "POST" });
+        location.href = data.url;
+      } catch (err) {
+        toast(apiErrorMessage(err));
+      }
+    });
+    return;
+  }
+
+  // No es premium → oferta.
+  app.innerHTML = `<section class="premium"><h2>👑 ${t("premium_title")}</h2>
+    <div class="premium-card">
+      <ul class="premium-list">
+        <li>💛 ${t("premium_f1")}</li>
+        <li>❤️‍🔥 ${t("premium_f2")}</li>
+        <li>🚀 ${t("premium_f3")}</li>
+      </ul>
+      <p class="premium-price">${t("premium_price")}</p>
+      <button class="btn btn-primary" id="btn-checkout">👑 ${t("premium_cta")}</button>
+      <p class="muted small center">${t("premium_note")}</p>
+    </div>
+    <p class="center"><a class="btn btn-ghost" href="#/descubrir">${t("common_back")}</a></p>
+  </section>`;
+
+  document.getElementById("btn-checkout").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      // POST /api/billing/checkout → {url} (Stripe Checkout)
+      const data = await api("/api/billing/checkout", { method: "POST" });
+      location.href = data.url; // Stripe se encarga del pago
+    } catch (err) {
+      toast(apiErrorMessage(err));
+      btn.disabled = false;
+    }
+  });
 }
 
 /* ----- #/chat/:matchId ----- */
@@ -734,6 +917,8 @@ async function renderSettings() {
         </div>
       </div>
 
+      <div class="setting-row" id="premium-row"><span>👑 Premium</span><span class="muted">${t("common_loading")}</span></div>
+
       <div class="setting-block">
         <h3>⛔ ${t("settings_blocked")}</h3>
         <ul class="block-list" id="block-list"><li class="muted">${t("common_loading")}</li></ul>
@@ -757,6 +942,19 @@ async function renderSettings() {
   app.querySelectorAll("[data-lang]").forEach((b) => {
     b.addEventListener("click", () => setLang(b.getAttribute("data-lang")));
   });
+
+  // Fila premium: estado y acceso rápido.
+  try {
+    const billing = await billingStatus();
+    const row = document.getElementById("premium-row");
+    if (row) {
+      row.innerHTML = billing.isPremium
+        ? `<span>👑 ${t("premium_activeShort")}</span><a class="btn btn-sm btn-ghost" href="#/premium">${t("premium_manage")}</a>`
+        : `<span>👑 Premium</span><a class="btn btn-sm btn-primary" href="#/premium">${t("premium_ctaShort")}</a>`;
+    }
+  } catch (err) {
+    /* sin premium no pasa nada */
+  }
 
   // Bloqueados → GET /api/blocks → {blocks:[{userId,displayName}]}
   try {

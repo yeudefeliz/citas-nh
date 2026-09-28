@@ -94,4 +94,23 @@ db.exec(`
   );
 `);
 
+// --- Migración: columnas premium (Stripe) ---------------------------------
+// CREATE TABLE IF NOT EXISTS no agrega columnas a tablas viejas, así que
+// revisamos PRAGMA table_info y aplicamos ALTER TABLE solo si falta.
+const columnasUsers = db
+  .prepare('PRAGMA table_info(users)')
+  .all()
+  .map((c) => c.name);
+const columnasPremium = {
+  is_premium: 'INTEGER NOT NULL DEFAULT 0',
+  premium_until: 'TEXT',
+  stripe_customer_id: 'TEXT',
+  stripe_subscription_id: 'TEXT',
+};
+for (const [nombre, tipo] of Object.entries(columnasPremium)) {
+  if (!columnasUsers.includes(nombre)) {
+    db.prepare(`ALTER TABLE users ADD COLUMN ${nombre} ${tipo}`).run();
+  }
+}
+
 module.exports = db;
