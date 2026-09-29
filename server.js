@@ -55,6 +55,7 @@ app.use('/api/events', require('./routes/events'));
 app.use('/api/stories', require('./routes/stories'));
 app.use('/api/icebreakers', require('./routes/icebreakers'));
 app.use('/api/referral', require('./routes/referral'));
+app.use('/api/achievements', require('./routes/achievements'));
 app.use('/api/top-picks', require('./routes/toppicks'));
 app.use('/api', require('./routes/social')); // /api/blocks, /api/reports
 app.use('/api', billing.router); // /api/billing/*, /api/admirers
@@ -93,13 +94,16 @@ app.use('/api', (req, res) => {
 // (Tiene que ir al final y llevar 4 parámetros para que Express lo use.)
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  // Archivo demasiado grande (límite de multer: 5 MB).
+  // Archivo demasiado grande (límite de multer: 5 MB fotos, 30 MB video).
   if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
     return res.status(413).json({ error: 'FILE_TOO_LARGE' });
   }
-  // El fileFilter rechazó el archivo (no es imagen).
+  // El fileFilter rechazó el archivo (no es imagen / no es video).
   if (err.code === 'INVALID_FILE_TYPE') {
     return res.status(400).json({ error: 'INVALID_FILE_TYPE' });
+  }
+  if (err.code === 'INVALID_VIDEO') {
+    return res.status(400).json({ error: 'INVALID_VIDEO' });
   }
   // JSON mal formado en el cuerpo de la petición.
   if (err.type === 'entity.parse.failed') {

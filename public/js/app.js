@@ -125,6 +125,79 @@ function vBadge(isV) {
   return isV ? '<span class="verif-badge" title="✅">✅</span>' : "";
 }
 
+// achEmoji(): emoji de cada logro para las medallas del perfil.
+function achEmoji(code) {
+  return {
+    first_like: "❤️",
+    first_match: "💞",
+    chatterbox: "💬",
+    popular: "⭐",
+    verified: "✅",
+    social: "🎉",
+    sharer: "🎁",
+  }[code] || "🏅";
+}
+
+/* ----- Presencia: "En línea" y última conexión ----- */
+// timeAgo(iso): texto relativo — "hace 5 min", "hace 2 h", "ayer".
+function timeAgo(iso) {
+  if (!iso) return "";
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return t("presence_now");
+  if (mins < 60) return t("presence_min").replace("{n}", mins);
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return t("presence_hour").replace("{n}", hours);
+  const days = Math.floor(hours / 24);
+  if (days === 1) return t("presence_yesterday");
+  return t("presence_days").replace("{n}", days);
+}
+
+// presenceHtml(user): puntito 🟢 + texto de presencia. El backend ya oculta
+// el estado si el otro está en modo invisible (online=false, lastSeen=null).
+function presenceHtml(user) {
+  if (!user) return "";
+  if (user.online) {
+    return `<span class="presence"><span class="presence-dot online" aria-hidden="true"></span>${t("presence_online")}</span>`;
+  }
+  if (user.lastSeen) {
+    return `<span class="presence"><span class="presence-dot offline" aria-hidden="true"></span>${esc(timeAgo(user.lastSeen))}</span>`;
+  }
+  return "";
+}
+
+/* ----- Logros: toast de celebración ----- */
+// Celebra los logros nuevos que el backend devolvió en newAchievements[].
+function celebrateAchievements(codes) {
+  for (const code of codes || []) {
+    const name = t("ach_" + code);
+    if (name) toast("🏆 " + t("achievement_unlocked").replace("{name}", name));
+  }
+}
+
+// Algunos logros los gana OTRA persona por ti (ej. "popular" cuando te dan
+// like, "sharer" cuando un amigo se registra): el backend los otorga pero el
+// toast no te llegaría. Al navegar, comparamos con lo último visto y
+// celebramos lo nuevo. La primera vez solo marca, sin tormenta de toasts.
+let achSeenAt = null;
+try { achSeenAt = localStorage.getItem("citasnh-ach-seen"); } catch (e) { /* nada */ }
+async function checkNewAchievements() {
+  try {
+    const data = await api("/api/achievements");
+    const ahora = new Date().toISOString();
+    const primeraVez = !achSeenAt;
+    const nuevos = primeraVez
+      ? []
+      : (data.achievements || []).filter(
+          (a) => a.earned && a.earnedAt && a.earnedAt > achSeenAt
+        );
+    try { localStorage.setItem("citasnh-ach-seen", ahora); } catch (e) { /* nada */ }
+    achSeenAt = ahora;
+    if (nuevos.length) celebrateAchievements(nuevos.map((a) => a.code));
+  } catch (e) {
+    /* silencioso: no molesta la navegación */
+  }
+}
+
 // Catálogo de regalos (GET /api/gifts/catalog), cacheado en memoria.
 let giftCatalog = null;
 async function loadGiftCatalog() {
@@ -287,12 +360,17 @@ function showPremiumModal() {
 const app = document.getElementById("app");
 const bottomnav = document.getElementById("bottomnav");
 let chatTimer = null; // temporizador del polling del chat
+let presenceTimer = null; // temporizador de la presencia en el chat
 const cache = { matches: [] }; // guarda matches para el chat (reportar/bloquear)
 
 function stopChatPolling() {
   if (chatTimer) {
     clearInterval(chatTimer);
     chatTimer = null;
+  }
+  if (presenceTimer) {
+    clearInterval(presenceTimer);
+    presenceTimer = null;
   }
   stopCallPolling(); // deja de buscar llamadas entrantes
   if (callState) endCall(true); // cuelga si hay una llamada activa
@@ -313,6 +391,9 @@ function route() {
     location.hash = "#/login";
     return;
   }
+
+  // Con sesión: avisa de logros ganados por acciones de otros (popular, sharer…).
+  if (logged) checkNewAchievements();
   // Con token no tiene sentido ver login/registro.
   if (logged && (rutaBase === "#/login" || rutaBase === "#/registro")) {
     location.hash = "#/descubrir";
@@ -550,6 +631,14 @@ async function renderDiscover() {
   const distTxt = card.distanceMi !== null && card.distanceMi !== undefined
     ? `<p class="muted">📍 ${esc(t("discover_distance").replace("{n}", card.distanceMi))}</p>` : "";
   const boostTxt = card.boosted ? `<span class="boost-tag">${t("discover_boosted")}</span>` : "";
+  const presenceTxt = presenceHtml(card);
+
+  // El video de presentación va PRIMERO (autoplay, sin sonido, en bucle).
+  const mediaHtml = card.videoUrl
+    ? `<video class="card-video" src="${esc(card.videoUrl)}" autoplay muted loop playsinline></video>`
+    : photo
+      ? `<img class="card-photo" id="card-photo" src="${esc(photo)}" alt="">`
+      : `<div class="card-photo placeholder" aria-hidden="true">❤</div>`;
 
   app.innerHTML = `
     <section class="discover">
@@ -559,12 +648,11 @@ async function renderDiscover() {
       ${filtrosHtml}
       ${toppicksHtml}
       <article class="card">
-        ${photo
-          ? `<img class="card-photo" id="card-photo" src="${esc(photo)}" alt="">`
-          : `<div class="card-photo placeholder" aria-hidden="true">❤</div>`}
+        ${mediaHtml}
         <div class="card-body">
           <h3>${esc(card.displayName)}, ${esc(card.age)} ${vBadge(card.isVerified)} ${boostTxt}</h3>
           <p class="muted">${esc(card.town || "")}</p>
+          ${presenceTxt ? `<p>${presenceTxt}</p>` : ""}
           ${distTxt}
           ${card.bio ? `<p class="bio">${esc(card.bio)}</p>` : ""}
           ${langs ? `<p class="muted">🗣 ${langs}</p>` : ""}
@@ -582,10 +670,14 @@ async function renderDiscover() {
   wireFilters();
   loadStoriesBar(); // llena la barra de stories de 24 h
   loadTopPicks();   // llena los 3 Top Picks del día
-  // Tocar la foto abre el perfil completo (y registra la visita).
+  // Tocar la foto o el video abre el perfil completo (y registra la visita).
   const cardPhoto = document.getElementById("card-photo");
   if (cardPhoto) {
     cardPhoto.addEventListener("click", () => openProfileViewer(card.userId));
+  }
+  const cardVideo = document.querySelector(".discover .card-video");
+  if (cardVideo) {
+    cardVideo.addEventListener("click", () => openProfileViewer(card.userId));
   }
 
   const vote = async (v, isSuper) => {
@@ -613,6 +705,7 @@ async function renderDiscover() {
         body: JSON.stringify({ targetUserId: card.userId, vote: v, super: !!isSuper }),
       });
       await sleep(cardEl ? 300 : 0); // deja que la animación de salida se aprecie
+      celebrateAchievements(res.newAchievements); // 🏆 logros (primer like, match, popular...)
       if (res.match) {
         showMatchModal(card.displayName, res.matchId, !!res.super); // ¡match! aviso celebratorio
       } else {
@@ -951,12 +1044,18 @@ async function openProfileViewer(userId) {
   const photosHtml = (p.photos || [])
     .map((f) => `<img src="${esc(f.url)}" alt="">`)
     .join("");
+  const videoHtml = p.videoUrl
+    ? `<video class="viewer-video" src="${esc(p.videoUrl)}" controls autoplay muted loop playsinline></video>`
+    : "";
+  const presenceTxt = presenceHtml(p);
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
   overlay.innerHTML = `
     <div class="modal profile-viewer" role="dialog" aria-modal="true">
-      <div class="viewer-photos">${photosHtml || `<div class="card-photo placeholder" aria-hidden="true">❤</div>`}</div>
+      ${videoHtml}
+      <div class="viewer-photos">${photosHtml || (videoHtml ? "" : `<div class="card-photo placeholder" aria-hidden="true">❤</div>`)}</div>
       <h2>${esc(p.displayName)}, ${esc(p.age)} ${vBadge(p.isVerified)}</h2>
+      ${presenceTxt ? `<p>${presenceTxt}</p>` : ""}
       <p class="muted">${esc(p.town || "")}</p>
       ${p.bio ? `<p class="bio">${esc(p.bio)}</p>` : ""}
       ${langs ? `<p class="muted">🗣 ${langs}</p>` : ""}
@@ -1069,6 +1168,7 @@ async function renderMatches() {
             <span class="match-info">
               <strong>${esc(u.displayName)}, ${esc(u.age)} ${vBadge(u.isVerified)}</strong>
               <small class="muted">${esc((m.lastMessage && m.lastMessage.text) || u.town || "")}</small>
+              ${presenceHtml(u) ? `<small>${presenceHtml(u)}</small>` : ""}
             </span>
             <span class="chev" aria-hidden="true">›</span>
           </a></li>`;
@@ -1216,8 +1316,12 @@ async function renderChat(matchId) {
     <section class="chat">
       <div class="chat-header">
         <a class="btn btn-ghost btn-sm" href="#/matches" aria-label="${t("common_back")}">‹</a>
-        <strong class="chat-name">${esc(other.displayName || "")} ${vBadge(other.isVerified)}</strong>
+        <span class="chat-peer">
+          <strong class="chat-name">${esc(other.displayName || "")} ${vBadge(other.isVerified)}</strong>
+          <span class="chat-presence" id="chat-presence">${presenceHtml(other)}</span>
+        </span>
         <button class="btn btn-ghost btn-sm" id="chat-call" title="${esc(t("call_video"))}" aria-label="${esc(t("call_video"))}">📹</button>
+        <button class="btn btn-ghost btn-sm" id="chat-dateplan" title="${esc(t("dateplan_btn"))}" aria-label="${esc(t("dateplan_btn"))}">📅</button>
         <button class="btn btn-ghost btn-sm" id="chat-gift" title="${esc(t("gift_title"))}" aria-label="${esc(t("gift_title"))}">🎁</button>
         <button class="btn btn-ghost btn-sm" id="chat-report">🚩 ${t("chat_report")}</button>
         <button class="btn btn-ghost btn-sm danger" id="chat-block">⛔ ${t("chat_block")}</button>
@@ -1245,15 +1349,148 @@ async function renderChat(matchId) {
 
   let lastId = 0; // id del último mensaje visto (para ?after=)
 
+  // Idioma principal del otro (para la traducción ES↔EN) y el mío.
+  // Solo ofrecemos traducir entre español e inglés (lo que cubre MyMemory gratis).
+  const otherLang = String((other.languages && other.languages[0]) || "").toLowerCase();
+  let myLang = lang; // idioma de la app como respaldo
+  try {
+    const meProf = await api("/api/profile/");
+    const mls = (meProf.profile && meProf.profile.languages) || [];
+    if (mls.length) myLang = String(mls[0]).toLowerCase();
+  } catch (e) { /* seguimos con el idioma de la app */ }
+  // ¿Este mensaje recibido merece botón 🌐? Solo texto, del otro, y ES↔EN.
+  const needsTranslation = (m) =>
+    (m.type || "text") === "text" &&
+    m.text &&
+    !(myId && String(m.senderId) === String(myId)) &&
+    ["es", "en"].includes(otherLang) &&
+    ["es", "en"].includes(myLang) &&
+    otherLang !== myLang;
+
+  // Traduce con MyMemory (gratis, sin clave). Cachea por mensaje.
+  const traducciones = {}; // msgId → {original, translated, showing}
+  const traducirMensaje = async (m, btn) => {
+    const id = m.id;
+    if (traducciones[id] && traducciones[id].showing === "translated") {
+      // Toggle: vuelve al original.
+      traducciones[id].showing = "original";
+      btn.textContent = "🌐";
+      const el = document.querySelector(`[data-traduccion="${id}"]`);
+      if (el) el.remove();
+      return;
+    }
+    if (traducciones[id] && traducciones[id].showing === "original") {
+      traducciones[id].showing = "translated";
+      btn.textContent = "🌐✓";
+      mostrarTraduccion(id, traducciones[id].translated);
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = "⏳";
+    try {
+      const url =
+        "https://api.mymemory.translated.net/get?q=" + encodeURIComponent(m.text) +
+        "&langpair=" + encodeURIComponent(otherLang + "|" + myLang);
+      const res = await fetch(url);
+      const data = await res.json();
+      const txt = data && data.responseData && data.responseData.translatedText;
+      if (!txt) throw new Error("empty");
+      traducciones[id] = { original: m.text, translated: txt, showing: "translated" };
+      btn.textContent = "🌐✓";
+      mostrarTraduccion(id, txt);
+    } catch (e) {
+      toast(t("translate_fail"));
+      btn.textContent = "🌐";
+    }
+    btn.disabled = false;
+  };
+  const mostrarTraduccion = (id, txt) => {
+    const burbuja = document.querySelector(`.msg[data-mid="${id}"] .msg-text`);
+    if (!burbuja || document.querySelector(`[data-traduccion="${id}"]`)) return;
+    const p = document.createElement("p");
+    p.className = "msg-translation";
+    p.setAttribute("data-traduccion", id);
+    p.textContent = txt;
+    burbuja.appendChild(p);
+  };
+
+  // Tarjeta de plan de cita: borde degradado; estado propuesto/aceptado/rechazado.
+  const pintarPlan = (plan) => {
+    if (!plan) return `<p class="muted">${t("dateplan_missing")}</p>`;
+    const fecha = new Date(plan.dateTime);
+    const fechaTxt = isNaN(fecha.getTime())
+      ? plan.dateTime
+      : fecha.toLocaleString(lang === "es" ? "es-DO" : "en-US", {
+          weekday: "short", day: "numeric", month: "short",
+          hour: "numeric", minute: "2-digit",
+        });
+    let estadoHtml = "";
+    if (plan.status === "accepted") {
+      estadoHtml = `<p class="plan-status ok">✅ ${esc(
+        t("dateplan_confirmed").replace("{place}", plan.place).replace("{date}", fechaTxt)
+      )}</p>`;
+    } else if (plan.status === "declined") {
+      estadoHtml = `<p class="plan-status no">❌ ${t("dateplan_declined")}</p>`;
+    } else if (!plan.mine) {
+      // Propuesta del otro: puedo aceptarla o rechazarla.
+      estadoHtml = `<div class="plan-actions">
+          <button class="btn btn-sm btn-like" data-plan-accept="${plan.id}">✅ ${t("dateplan_accept")}</button>
+          <button class="btn btn-sm btn-pass" data-plan-decline="${plan.id}">✕ ${t("dateplan_decline")}</button>
+        </div>`;
+    } else {
+      estadoHtml = `<p class="plan-status wait">⏳ ${t("dateplan_waiting")}</p>`;
+    }
+    return `<div class="dateplan-card" data-planid="${plan.id}">
+      <p class="plan-title">📅 ${esc(plan.place)}</p>
+      <p class="plan-date">🕐 ${esc(fechaTxt)}</p>
+      ${plan.note ? `<p class="plan-note">${esc(plan.note)}</p>` : ""}
+      ${estadoHtml}
+    </div>`;
+  };
+
+  // Responde a una propuesta de cita (aceptar/rechazar) y refresca las tarjetas.
+  const responderPlan = async (planId, accept) => {
+    try {
+      const res = await api(
+        "/api/chat/" + encodeURIComponent(matchId) + "/dateplan/" + encodeURIComponent(planId) + "/respond",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accept }) }
+      );
+      // Refresca TODAS las tarjetas de este plan (la propuesta vieja también cambia).
+      document.querySelectorAll(`.dateplan-card[data-planid="${planId}"]`).forEach((el) => {
+        el.outerHTML = pintarPlan(res.plan);
+      });
+      if (res.message) {
+        appendMsgs([res.message]);
+        lastId = res.message.id;
+      }
+      wirePlanButtons();
+      if (accept) confettiBurst();
+    } catch (err) {
+      toast(apiErrorMessage(err));
+    }
+  };
+
+  // Conecta los botones Aceptar/Rechazar de las tarjetas de cita.
+  const wirePlanButtons = () => {
+    box.querySelectorAll("[data-plan-accept]").forEach((b) => {
+      b.onclick = () => responderPlan(Number(b.getAttribute("data-plan-accept")), true);
+    });
+    box.querySelectorAll("[data-plan-decline]").forEach((b) => {
+      b.onclick = () => responderPlan(Number(b.getAttribute("data-plan-decline")), false);
+    });
+  };
+
   // Dibuja mensajes. El texto usa textContent (no innerHTML) para que nadie
   // pueda inyectar HTML malicioso en el chat.
-  // Tipos: 'text' → burbuja normal; 'voice' → reproductor de audio;
-  // 'gift' → tarjeta animada del regalo.
+  // Tipos: 'text' → burbuja normal (+ botón 🌐 si el idioma difiere);
+  // 'voice' → reproductor de audio; 'gift' → tarjeta animada del regalo;
+  // 'dateplan' → tarjeta de cita propuesta/aceptada/rechazada.
   // Cada mensaje lleva su fila de reacciones (❤️ 😂 🔥 😮 😢 👍).
   const appendMsgs = (msgs) => {
     msgs.forEach((m) => {
       const div = document.createElement("div");
       div.className = "msg" + (myId && String(m.senderId) === String(myId) ? " mine" : "");
+      div.setAttribute("data-mid", m.id);
       const tipo = m.type || "text";
       if (tipo === "voice" && m.audioUrl) {
         div.classList.add("msg-voice");
@@ -1268,8 +1505,28 @@ async function renderChat(matchId) {
           <span class="gift-emoji" aria-hidden="true">${esc(giftEmoji(m.text))}</span>
           <span class="gift-name">${esc(giftName(m.text))}</span>
         </div>`;
+      } else if (tipo === "dateplan") {
+        div.classList.add("msg-plan");
+        div.innerHTML = pintarPlan(m.dateplan);
       } else {
-        div.textContent = m.text;
+        const p = document.createElement("p");
+        p.className = "msg-text";
+        p.textContent = m.text;
+        div.appendChild(p);
+        // Botón 🌐 si el otro escribe en otro idioma (ES↔EN).
+        if (needsTranslation(m)) {
+          const tbtn = document.createElement("button");
+          tbtn.className = "translate-btn";
+          tbtn.type = "button";
+          tbtn.textContent = "🌐";
+          tbtn.title = t("translate_btn");
+          tbtn.setAttribute("aria-label", t("translate_btn"));
+          tbtn.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            traducirMensaje(m, tbtn);
+          });
+          div.appendChild(tbtn);
+        }
       }
       // Fila de reacciones debajo de la burbuja.
       const rrow = document.createElement("div");
@@ -1281,6 +1538,7 @@ async function renderChat(matchId) {
       // Doble tap (PC) o mantener presionado (móvil) → picker de reacciones.
       wireReactPicker(div, m.id);
     });
+    wirePlanButtons();
     box.scrollTop = box.scrollHeight; // baja hasta el último mensaje
   };
 
@@ -1393,13 +1651,14 @@ async function renderChat(matchId) {
     if (!text) return;
     input.value = "";
     try {
-      const { message } = await api("/api/chat/" + encodeURIComponent(matchId) + "/messages", {
+      const res = await api("/api/chat/" + encodeURIComponent(matchId) + "/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       });
-      appendMsgs([message]);
-      lastId = message.id;
+      appendMsgs([res.message]);
+      lastId = res.message.id;
+      celebrateAchievements(res.newAchievements); // 🏆 ej. "Conversador" a los 50 mensajes
     } catch (err) {
       toast(apiErrorMessage(err)); // ej. BLOCKED → "No puedes enviar mensajes…"
       input.value = text; // devuelve el texto para no perderlo
@@ -1479,12 +1738,13 @@ async function renderChat(matchId) {
           toast(t("voice_sending"));
           try {
             // POST /api/chat/:matchId/voice (multipart, campo "audio")
-            const { message } = await api(
+            const res = await api(
               "/api/chat/" + encodeURIComponent(matchId) + "/voice",
               { method: "POST", body: fd }
             );
-            appendMsgs([message]);
-            lastId = message.id;
+            appendMsgs([res.message]);
+            lastId = res.message.id;
+            celebrateAchievements(res.newAchievements);
           } catch (err) {
             toast(apiErrorMessage(err));
           }
@@ -1499,6 +1759,73 @@ async function renderChat(matchId) {
       }
     });
   }
+
+  // Planear cita 📅 → modal con lugar, fecha/hora y nota opcional.
+  // POST /api/chat/:matchId/dateplan → crea el plan + el mensaje.
+  document.getElementById("chat-dateplan").addEventListener("click", () => {
+    const old = document.getElementById("dateplan-modal");
+    if (old) old.remove();
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.id = "dateplan-modal";
+    overlay.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true">
+        <h3>📅 ${t("dateplan_title")}</h3>
+        <form id="dateplan-form">
+          <label class="field">${t("dateplan_place")}
+            <input name="place" required maxlength="120" placeholder="${esc(t("dateplan_place_ph"))}" autocomplete="off">
+          </label>
+          <label class="field">${t("dateplan_when")}
+            <input name="when" type="datetime-local" required>
+          </label>
+          <label class="field">${t("dateplan_note")}
+            <input name="note" maxlength="300" placeholder="${esc(t("dateplan_note_ph"))}" autocomplete="off">
+          </label>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" id="dp-cancel">${t("common_cancel")}</button>
+            <button type="submit" class="btn btn-primary">📅 ${t("dateplan_send")}</button>
+          </div>
+        </form>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector("#dp-cancel").addEventListener("click", close);
+    overlay.addEventListener("click", (ev) => { if (ev.target === overlay) close(); });
+    overlay.querySelector("#dateplan-form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      const place = String(fd.get("place") || "").trim();
+      const when = String(fd.get("when") || "");
+      const note = String(fd.get("note") || "").trim();
+      if (!place || !when) return;
+      try {
+        const res = await api("/api/chat/" + encodeURIComponent(matchId) + "/dateplan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ place, dateTime: new Date(when).toISOString(), note }),
+        });
+        close();
+        if (res.message) {
+          appendMsgs([res.message]);
+          lastId = res.message.id;
+        }
+      } catch (err) {
+        toast(apiErrorMessage(err));
+      }
+    });
+  });
+
+  // Presencia en el header: se refresca cada 30 s (el backend la oculta
+  // si el otro activó el modo invisible).
+  const refreshPresence = async () => {
+    if (!otherId) return;
+    try {
+      const data = await api("/api/profile/" + encodeURIComponent(otherId));
+      const el = document.getElementById("chat-presence");
+      if (el && data.profile) el.innerHTML = presenceHtml(data.profile);
+    } catch (e) { /* no molestamos si falla */ }
+  };
+  presenceTimer = setInterval(refreshPresence, 30000);
 
   // Tienda de regalos 🎁 → modal con el catálogo; al elegir uno se abre
   // el pago de Stripe (el regalo aparece en el chat cuando se complete).
@@ -1931,6 +2258,11 @@ async function renderProfile() {
         <p class="muted">${t("common_loading")}</p>
       </div>
 
+      <div class="card" id="achievements-card">
+        <h3>🏆 ${t("achievements_title")}</h3>
+        <p class="muted">${t("common_loading")}</p>
+      </div>
+
       <p class="field-label">${t("profile_photos")}</p>
       <div class="photo-grid" id="photo-grid"></div>
       ${photos.length < MAX_PHOTOS
@@ -1938,6 +2270,22 @@ async function renderProfile() {
              <input type="file" id="photo-input" accept="image/*" hidden>
            </label>`
         : ""}
+
+      <p class="field-label">🎥 ${t("profile_video")}</p>
+      <div id="video-wrap">
+        ${profile.videoUrl
+          ? `<video class="profile-video" src="${esc(profile.videoUrl)}" controls playsinline></video>
+             <div class="video-actions">
+               <label class="btn btn-ghost btn-sm" for="video-input">🔄 ${t("profile_videoReplace")}
+                 <input type="file" id="video-input" accept="video/*" hidden>
+               </label>
+               <button class="btn btn-ghost btn-sm danger" id="video-delete">🗑 ${t("profile_videoDelete")}</button>
+             </div>`
+          : `<label class="btn btn-ghost" for="video-input">🎥 ${t("profile_videoAdd")}
+               <input type="file" id="video-input" accept="video/*" hidden>
+             </label>
+             <p class="muted small">${t("profile_videoHint")}</p>`}
+      </div>
 
       <form id="profile-form">
         <label>${t("profile_bio")}
@@ -2002,6 +2350,64 @@ async function renderProfile() {
   } catch (e) {
     const card = document.getElementById("referral-card");
     if (card) card.style.display = "none";
+  }
+
+  // Logros 🏆 → GET /api/achievements {level, levelName, total, earnedCount, achievements}
+  try {
+    const ach = await api("/api/achievements");
+    const card = document.getElementById("achievements-card");
+    if (card) {
+      const pct = ach.total ? Math.round((ach.earnedCount / ach.total) * 100) : 0;
+      const medallas = (ach.achievements || [])
+        .map((a) => `<span class="ach-medal${a.earned ? " earned" : ""}" title="${esc(t("ach_" + a.code))}">
+            <span class="ach-emoji" aria-hidden="true">${esc(achEmoji(a.code))}</span>
+            <small>${esc(t("ach_" + a.code))}</small>
+          </span>`)
+        .join("");
+      card.innerHTML = `
+        <h3>🏆 ${t("achievements_title")}</h3>
+        <p><strong>${t(ach.levelName)}</strong> · ${t("achievements_level").replace("{n}", ach.level)}</p>
+        <div class="level-bar" aria-hidden="true"><div class="level-fill" style="width:${pct}%"></div></div>
+        <p class="muted small">${esc(t("achievements_progress").replace("{a}", ach.earnedCount).replace("{b}", ach.total))}</p>
+        <div class="ach-grid">${medallas}</div>`;
+    }
+  } catch (e) {
+    const card = document.getElementById("achievements-card");
+    if (card) card.style.display = "none";
+  }
+
+  // Video de presentación 🎥 → POST /api/profile/video (multipart, campo "video", máx. 30 MB)
+  const videoInput = document.getElementById("video-input");
+  if (videoInput) {
+    videoInput.addEventListener("change", async () => {
+      if (!videoInput.files.length) return;
+      const fd = new FormData();
+      fd.append("video", videoInput.files[0]);
+      toast(t("profile_videoUploading"));
+      try {
+        await api("/api/profile/video", { method: "POST", body: fd });
+        toast(t("profile_videoDone"));
+        renderProfile(); // recarga y muestra el preview
+      } catch (err) {
+        toast(apiErrorMessage(err));
+        videoInput.value = "";
+      }
+    });
+  }
+  // DELETE /api/profile/video → borra el video de presentación.
+  const videoDel = document.getElementById("video-delete");
+  if (videoDel) {
+    videoDel.addEventListener("click", async () => {
+      videoDel.disabled = true;
+      try {
+        await api("/api/profile/video", { method: "DELETE" });
+        toast(t("profile_videoDeleted"));
+        renderProfile();
+      } catch (err) {
+        toast(apiErrorMessage(err));
+        videoDel.disabled = false;
+      }
+    });
   }
 
   // Boost → POST /api/billing/boost → {url} (Stripe Checkout, $1.99 pago único)
@@ -2097,8 +2503,9 @@ async function renderProfile() {
       verifyBtn.disabled = true;
       toast(t("verify_uploading"));
       try {
-        await api("/api/verification/request", { method: "POST", body: fd });
+        const res = await api("/api/verification/request", { method: "POST", body: fd });
         toast(t("verify_done"));
+        celebrateAchievements(res.newAchievements); // 🏆 "Perfil verificado"
         renderProfile();
       } catch (err) {
         toast(apiErrorMessage(err)); // ej. SELFIE_SAME_AS_PHOTO
@@ -2238,9 +2645,10 @@ async function renderEvents() {
     btn.addEventListener("click", async () => {
       btn.disabled = true;
       try {
-        await api("/api/events/" + encodeURIComponent(btn.getAttribute("data-rsvp")) + "/rsvp", {
+        const res = await api("/api/events/" + encodeURIComponent(btn.getAttribute("data-rsvp")) + "/rsvp", {
           method: "POST",
         });
+        celebrateAchievements(res.newAchievements); // 🏆 "Vida social" al 3er RSVP
         renderEvents();
       } catch (err) {
         toast(apiErrorMessage(err));

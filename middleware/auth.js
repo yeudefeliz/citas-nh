@@ -4,6 +4,15 @@
 
 const jwt = require('jsonwebtoken');
 
+// db se usa solo para el UPDATE ligero de last_seen (con throttle).
+// Está en try/catch para que un problema de disco jamás rompa la auth.
+let db = null;
+try {
+  db = require('../db');
+} catch (e) {
+  db = null;
+}
+
 // Bandera para mostrar el aviso del secreto solo una vez por arranque.
 let avisoMostrado = false;
 
@@ -34,6 +43,21 @@ function auth(req, res, next) {
     const datos = jwt.verify(token, getJwtSecret());
     // El token se firmó con { userId }, así que lo recuperamos de ahí.
     req.userId = datos.userId;
+
+    // Última conexión (throttle: solo se escribe si tiene +2 min de
+    // antigüedad, para no saturar la base en cada petición).
+    if (db) {
+      try {
+        const ahora = new Date().toISOString();
+        const hace2min = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+        db.prepare(
+          'UPDATE users SET last_seen = ? WHERE id = ? AND (last_seen IS NULL OR last_seen < ?)'
+        ).run(ahora, datos.userId, hace2min);
+      } catch (e) {
+        // Si falla, la petición sigue igual; no es crítico.
+      }
+    }
+
     next();
   } catch (e) {
     // Token expirado, mal firmado o corrupto → 401.

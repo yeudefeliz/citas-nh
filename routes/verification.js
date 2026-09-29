@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const db = require('../db');
 const { auth } = require('../middleware/auth');
+const { grantAchievement } = require('../utils/achievements');
 
 const router = express.Router();
 
@@ -102,7 +103,11 @@ router.post('/request', auth, upload.single('selfie'), (req, res) => {
     `UPDATE users SET verification_status = 'verified', is_verified = 1 WHERE id = ?`
   ).run(req.userId);
 
-  return res.json({ status: 'verified', isVerified: true });
+  // Logro "verified": perfil verificado.
+  const nuevosLogros = [];
+  if (grantAchievement(req.userId, 'verified')) nuevosLogros.push('verified');
+
+  return res.json({ status: 'verified', isVerified: true, newAchievements: nuevosLogros });
 });
 
 module.exports = router;

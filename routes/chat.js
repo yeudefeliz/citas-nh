@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const db = require('../db');
 const { auth, getJwtSecret } = require('../middleware/auth');
+const { grantAchievement } = require('../utils/achievements');
 const jwt = require('jsonwebtoken');
 
 const router = express.Router();
@@ -84,6 +85,49 @@ function resumenReacciones(messageId, userId) {
   }));
 }
 
+// Arma el objeto público de un plan de cita para el chat.
+function armarPlan(fila, yo) {
+  if (!fila) return null;
+  const creador = db
+    .prepare('SELECT display_name FROM users WHERE id = ?')
+    .get(fila.created_by);
+  return {
+    id: fila.id,
+    place: fila.place,
+    dateTime: fila.date_time,
+    note: fila.note || '',
+    status: fila.status, // 'proposed' | 'accepted' | 'declined'
+    createdBy: fila.created_by,
+    mine: fila.created_by === yo,
+    creatorName: creador ? creador.display_name : '',
+  };
+}
+
+// Adjunta el plan de cita a los mensajes type='dateplan' (text = planId).
+function adjuntarPlanes(mensajes, yo) {
+  const porId = {};
+  return mensajes.map((m) => {
+    const base = {
+      id: m.id,
+      senderId: m.sender_id,
+      text: m.text,
+      type: m.type || 'text',
+      audioUrl: m.audio_url || null,
+      createdAt: m.created_at,
+      reactions: resumenReacciones(m.id, yo),
+    };
+    if (base.type === 'dateplan') {
+      const planId = Number(m.text);
+      if (!porId[planId]) {
+        const fila = db.prepare('SELECT * FROM date_plans WHERE id = ?').get(planId);
+        porId[planId] = armarPlan(fila, yo);
+      }
+      base.dateplan = porId[planId];
+    }
+    return base;
+  });
+}
+
 // GET /api/chat/:matchId/messages — Historial (con ?after=<id> para traer solo lo nuevo).
 router.get('/:matchId/messages', auth, (req, res) => {
   const match = obtenerMatch(req.params.matchId, req.userId);
@@ -112,17 +156,7 @@ router.get('/:matchId/messages', auth, (req, res) => {
       .all(match.id);
   }
 
-  return res.json({
-    messages: mensajes.map((m) => ({
-      id: m.id,
-      senderId: m.sender_id,
-      text: m.text,
-      type: m.type || 'text',
-      audioUrl: m.audio_url || null,
-      createdAt: m.created_at,
-      reactions: resumenReacciones(m.id, req.userId),
-    })),
-  });
+  return res.json({ messages: adjuntarPlanes(mensajes, req.userId) });
 });
 
 // POST /api/chat/:matchId/messages — Envía un mensaje (texto ≤ 1000, no vacío).
@@ -152,6 +186,15 @@ router.post('/:matchId/messages', auth, (req, res) => {
     )
     .run(match.id, req.userId, texto, ahora);
 
+  // Logro "chatterbox": envió 50 mensajes (de cualquier tipo).
+  const nuevosLogros = [];
+  const enviados = db
+    .prepare('SELECT COUNT(*) AS c FROM messages WHERE sender_id = ?')
+    .get(req.userId).c;
+  if (enviados >= 50 && grantAchievement(req.userId, 'chatterbox')) {
+    nuevosLogros.push('chatterbox');
+  }
+
   return res.status(201).json({
     message: {
       id: nuevo.lastInsertRowid,
@@ -162,6 +205,7 @@ router.post('/:matchId/messages', auth, (req, res) => {
       createdAt: ahora,
       reactions: [],
     },
+    newAchievements: nuevosLogros,
   });
 });
 
@@ -193,6 +237,15 @@ router.post('/:matchId/voice', auth, uploadVoz.single('audio'), (req, res) => {
     )
     .run(match.id, req.userId, audioUrl, ahora);
 
+  // Logro "chatterbox": cuenta las notas de voz también.
+  const nuevosLogros = [];
+  const enviados = db
+    .prepare('SELECT COUNT(*) AS c FROM messages WHERE sender_id = ?')
+    .get(req.userId).c;
+  if (enviados >= 50 && grantAchievement(req.userId, 'chatterbox')) {
+    nuevosLogros.push('chatterbox');
+  }
+
   return res.status(201).json({
     message: {
       id: nuevo.lastInsertRowid,
@@ -203,6 +256,7 @@ router.post('/:matchId/voice', auth, uploadVoz.single('audio'), (req, res) => {
       createdAt: ahora,
       reactions: [],
     },
+    newAchievements: nuevosLogros,
   });
 });
 
@@ -291,6 +345,118 @@ router.get('/voice/:archivo', (req, res) => {
     return res.status(404).json({ error: 'NOT_FOUND' });
   }
   return res.sendFile(ruta);
+});
+
+// POST /api/chat/:matchId/dateplan — Propone una cita: {place, dateTime, note?}.
+// Crea el plan + un mensaje type='dateplan' que lo muestra en el chat.
+router.post('/:matchId/dateplan', auth, (req, res) => {
+  const match = obtenerMatch(req.params.matchId, req.userId);
+  if (!match) {
+    return res.status(404).json({ error: 'MATCH_NOT_FOUND' });
+  }
+  const otroId = match.user1_id === req.userId ? match.user2_id : match.user1_id;
+  if (hayBloqueo(req.userId, otroId)) {
+    return res.status(403).json({ error: 'BLOCKED' });
+  }
+
+  const lugar = typeof req.body.place === 'string' ? req.body.place.trim() : '';
+  if (!lugar || lugar.length > 120) {
+    return res.status(400).json({ error: 'INVALID_PLAN' });
+  }
+  const nota = typeof req.body.note === 'string' ? req.body.note.trim().slice(0, 300) : '';
+
+  // Fecha/hora válida y en el futuro (con 1 h de gracia por relojes).
+  const cuando = new Date(req.body.dateTime);
+  if (isNaN(cuando.getTime()) || cuando.getTime() < Date.now() - 60 * 60 * 1000) {
+    return res.status(400).json({ error: 'INVALID_PLAN' });
+  }
+
+  const ahora = new Date().toISOString();
+  const plan = db
+    .prepare(
+      `INSERT INTO date_plans (match_id, created_by, place, date_time, note, status, created_at)
+       VALUES (?, ?, ?, ?, ?, 'proposed', ?)`
+    )
+    .run(match.id, req.userId, lugar, cuando.toISOString(), nota, ahora);
+
+  const planId = plan.lastInsertRowid;
+  const msg = db
+    .prepare(
+      `INSERT INTO messages (match_id, sender_id, text, type, created_at)
+       VALUES (?, ?, ?, 'dateplan', ?)`
+    )
+    .run(match.id, req.userId, String(planId), ahora);
+
+  const fila = db.prepare('SELECT * FROM date_plans WHERE id = ?').get(planId);
+  return res.status(201).json({
+    plan: armarPlan(fila, req.userId),
+    message: {
+      id: msg.lastInsertRowid,
+      senderId: req.userId,
+      text: String(planId),
+      type: 'dateplan',
+      audioUrl: null,
+      createdAt: ahora,
+      reactions: [],
+      dateplan: armarPlan(fila, req.userId),
+    },
+  });
+});
+
+// POST /api/chat/:matchId/dateplan/:id/respond — Acepta o rechaza la cita.
+// {accept: true/false}. Solo puede responder quien NO la propuso, y solo
+// si sigue en estado 'proposed'. Al responder se publica un mensaje nuevo
+// con la tarjeta actualizada (el polling del chat lo recoge solo).
+router.post('/:matchId/dateplan/:id/respond', auth, (req, res) => {
+  const match = obtenerMatch(req.params.matchId, req.userId);
+  if (!match) {
+    return res.status(404).json({ error: 'MATCH_NOT_FOUND' });
+  }
+  const otroId = match.user1_id === req.userId ? match.user2_id : match.user1_id;
+  if (hayBloqueo(req.userId, otroId)) {
+    return res.status(403).json({ error: 'BLOCKED' });
+  }
+
+  const planId = Number(req.params.id);
+  const fila = db
+    .prepare('SELECT * FROM date_plans WHERE id = ? AND match_id = ?')
+    .get(planId, match.id);
+  if (!fila) {
+    return res.status(404).json({ error: 'PLAN_NOT_FOUND' });
+  }
+  if (fila.created_by === req.userId) {
+    return res.status(403).json({ error: 'NOT_YOUR_PLAN' });
+  }
+  if (fila.status !== 'proposed') {
+    return res.status(400).json({ error: 'PLAN_RESPONDED' });
+  }
+
+  const acepta = req.body && (req.body.accept === true || req.body.accept === 'true' || req.body.accept === 1);
+  const nuevoEstado = acepta ? 'accepted' : 'declined';
+  db.prepare('UPDATE date_plans SET status = ? WHERE id = ?').run(nuevoEstado, planId);
+
+  const ahora = new Date().toISOString();
+  const msg = db
+    .prepare(
+      `INSERT INTO messages (match_id, sender_id, text, type, created_at)
+       VALUES (?, ?, ?, 'dateplan', ?)`
+    )
+    .run(match.id, req.userId, String(planId), ahora);
+
+  const actualizada = db.prepare('SELECT * FROM date_plans WHERE id = ?').get(planId);
+  return res.json({
+    plan: armarPlan(actualizada, req.userId),
+    message: {
+      id: msg.lastInsertRowid,
+      senderId: req.userId,
+      text: String(planId),
+      type: 'dateplan',
+      audioUrl: null,
+      createdAt: ahora,
+      reactions: [],
+      dateplan: armarPlan(actualizada, req.userId),
+    },
+  });
 });
 
 module.exports = router;

@@ -6,6 +6,8 @@ const db = require('../db');
 const { auth } = require('../middleware/auth');
 const { calcularEdad } = require('../utils/validacion');
 const { esPremium } = require('./billing');
+const { presencia } = require('../utils/presence');
+const { grantAchievement } = require('../utils/achievements');
 
 // Likes por día para cuentas gratis (los premium no tienen límite).
 const FREE_LIKES_POR_DIA = 10;
@@ -92,6 +94,20 @@ function votar(yo, targetUserId, vote, isSuper) {
     'INSERT INTO votes (voter_id, target_id, vote, is_super, created_at) VALUES (?, ?, ?, ?, ?)'
   ).run(yo, targetUserId, vote, isSuper ? 1 : 0, new Date().toISOString());
 
+  // --- Logros ---
+  const nuevosLogros = [];
+  if (vote === 'like') {
+    // first_like: su primer like.
+    if (grantAchievement(yo, 'first_like')) nuevosLogros.push('first_like');
+    // popular: el que recibe llegó a 10 likes recibidos.
+    const likesRecibidos = db
+      .prepare("SELECT COUNT(*) AS c FROM votes WHERE target_id = ? AND vote = 'like'")
+      .get(targetUserId).c;
+    if (likesRecibidos >= 10 && grantAchievement(targetUserId, 'popular')) {
+      nuevosLogros.push('popular');
+    }
+  }
+
   // ¿Hay match? Solo si mi voto es "like" Y el otro ya me dio "like" a mí.
   if (vote === 'like') {
     const reciproco = db
@@ -114,11 +130,15 @@ function votar(yo, targetUserId, vote, isSuper) {
         match = { id: nuevo.lastInsertRowid };
       }
 
-      return { ok: true, match: true, matchId: match.id, super: !!isSuper };
+      // first_match: primer match de cada uno.
+      if (grantAchievement(yo, 'first_match')) nuevosLogros.push('first_match');
+      grantAchievement(targetUserId, 'first_match');
+
+      return { ok: true, match: true, matchId: match.id, super: !!isSuper, newAchievements: nuevosLogros };
     }
   }
 
-  return { ok: true, match: false, super: !!isSuper };
+  return { ok: true, match: false, super: !!isSuper, newAchievements: nuevosLogros };
 }
 
 // POST /api/votes — Vota "like" o "pass" sobre otro usuario.
@@ -173,12 +193,12 @@ router.get('/matches', auth, (req, res) => {
     }
 
     const u = db
-      .prepare('SELECT id, display_name, dob, is_verified FROM users WHERE id = ?')
+      .prepare('SELECT id, display_name, dob, is_verified, last_seen, invisible_mode FROM users WHERE id = ?')
       .get(otroId);
     if (!u) continue; // El otro usuario fue borrado; lo saltamos.
 
     const perfil = db
-      .prepare('SELECT town FROM profiles WHERE user_id = ?')
+      .prepare('SELECT town, languages FROM profiles WHERE user_id = ?')
       .get(otroId);
 
     const ultimo = db
@@ -191,6 +211,10 @@ router.get('/matches', auth, (req, res) => {
     let ultimoTexto = ultimo ? ultimo.text : '';
     if (ultimo && ultimo.type === 'voice') ultimoTexto = '🎤 Nota de voz';
     if (ultimo && ultimo.type === 'gift') ultimoTexto = '🎁 ¡Te envió un regalo!';
+    if (ultimo && ultimo.type === 'dateplan') ultimoTexto = '📅 Cita';
+
+    // Estado en línea del otro (el invisible lo oculta).
+    const pres = presencia(u.last_seen, u.invisible_mode);
 
     resultado.push({
       matchId: m.id,
@@ -201,6 +225,9 @@ router.get('/matches', auth, (req, res) => {
         town: (perfil && perfil.town) || '',
         photos: urlsFotos(u.id),
         isVerified: !!u.is_verified,
+        languages: perfil ? JSON.parse(perfil.languages || '[]') : [],
+        online: pres.online,
+        lastSeen: pres.lastSeen,
       },
       createdAt: m.created_at,
       lastMessage: ultimo

@@ -8,6 +8,7 @@ const db = require('../db');
 const { auth } = require('../middleware/auth');
 const { calcularEdad } = require('../utils/validacion');
 const { distanciaEntreZips } = require('../utils/zipcoords');
+const { presencia } = require('../utils/presence');
 
 const router = express.Router();
 
@@ -52,7 +53,9 @@ router.get('/', auth, (req, res) => {
   const filas = db
     .prepare(
       `SELECT u.id, u.display_name, u.dob, u.zip, u.boost_until, u.is_verified,
-              p.bio, p.gender, p.looking_for, p.languages, p.interests, p.town
+              u.last_seen, u.invisible_mode,
+              p.bio, p.gender, p.looking_for, p.languages, p.interests, p.town,
+              p.profile_video
        FROM users u
        JOIN profiles p ON p.user_id = u.id
        WHERE u.id != ?
@@ -92,6 +95,7 @@ router.get('/', auth, (req, res) => {
     return res.json({ card: null });
   }
   const fila = elegida.fila;
+  const pres = presencia(fila.last_seen, fila.invisible_mode);
 
   return res.json({
     card: {
@@ -105,10 +109,13 @@ router.get('/', auth, (req, res) => {
       languages: JSON.parse(fila.languages || '[]'),
       interests: JSON.parse(fila.interests || '[]'),
       photos: urlsFotos(fila.id),
+      videoUrl: fila.profile_video ? '/uploads/' + fila.profile_video : null,
       distanceMi:
         elegida.distancia === null ? null : Math.round(elegida.distancia),
       boosted: boostActivo(fila.boost_until, ahoraIso),
       isVerified: !!fila.is_verified,
+      online: pres.online,
+      lastSeen: pres.lastSeen,
     },
   });
 });

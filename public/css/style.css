@@ -1261,3 +1261,132 @@ legend { font-weight: 700; font-size: .92rem; padding: 0 8px; }
   }
   #app > section { animation: none; }
 }
+
+/* ================= Cuarta tanda ================= */
+/* Video de presentación: primero en Descubrir, visor y perfil. */
+.card-video {
+  width: 100%;
+  height: 400px;
+  object-fit: cover;
+  display: block;
+  background: var(--grad-soft);
+}
+.viewer-video {
+  width: 100%;
+  max-height: 320px;
+  border-radius: 16px;
+  margin-bottom: 12px;
+  background: #000;
+}
+.profile-video {
+  width: 100%;
+  max-height: 300px;
+  border-radius: 16px;
+  background: #000;
+}
+.video-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+/* Presencia: puntito verde + texto. */
+.presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .85rem;
+}
+.presence-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.presence-dot.online { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+.presence-dot.offline { background: #9ca3af; }
+.chat-peer {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+}
+.chat-presence { font-size: .78rem; color: var(--muted, #6b7280); }
+
+/* Traducción en el chat. */
+.msg-text { margin: 0; }
+.translate-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 2px 6px;
+  opacity: .85;
+}
+.msg-translation {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255,255,255,.35);
+  font-style: italic;
+  opacity: .95;
+}
+
+/* Tarjeta de cita: borde degradado rosado. */
+.msg-plan { background: transparent !important; padding: 0 !important; border: none !important; box-shadow: none !important; }
+.dateplan-card {
+  border: 2px solid transparent;
+  border-radius: 16px;
+  background:
+    linear-gradient(var(--card, #fff), var(--card, #fff)) padding-box,
+    var(--grad-main, linear-gradient(135deg, #ff6b9d, #c084fc)) border-box;
+  padding: 12px 14px;
+  min-width: 220px;
+}
+.plan-title { font-weight: 700; font-size: 1.05rem; margin: 0 0 4px; }
+.plan-date { margin: 0 0 4px; }
+.plan-note { margin: 0 0 8px; font-style: italic; opacity: .9; }
+.plan-status { margin: 8px 0 0; font-weight: 600; }
+.plan-status.ok { color: #15803d; }
+.plan-status.no { color: #b91c1c; }
+.plan-status.wait { color: #a16207; }
+.plan-actions { display: flex; gap: 8px; margin-top: 8px; }
+
+/* Logros y niveles. */
+.ach-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.ach-medal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border-radius: 14px;
+  background: var(--grad-soft);
+  filter: grayscale(1);
+  opacity: .55;
+  text-align: center;
+}
+.ach-medal.earned { filter: none; opacity: 1; }
+.ach-emoji { font-size: 1.8rem; }
+.ach-medal small { font-size: .68rem; line-height: 1.15; }
+.level-bar {
+  height: 10px;
+  border-radius: 99px;
+  background: var(--grad-soft);
+  overflow: hidden;
+  margin: 8px 0;
+}
+.level-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--grad-main, linear-gradient(135deg, #ff6b9d, #c084fc));
+  transition: width .5s ease;
+}
+@media (max-width: 640px) {
+  .card-video { height: 380px; }
+}

@@ -9,6 +9,7 @@ const db = require('../db');
 const { auth } = require('../middleware/auth');
 const { esPremium } = require('./billing');
 const { limpiarTexto, calcularEdad } = require('../utils/validacion');
+const { presencia } = require('../utils/presence');
 
 const router = express.Router();
 
@@ -42,6 +43,30 @@ const upload = multer({
 });
 
 const MAX_FOTOS = 3;
+const MAX_VIDEO_BYTES = 30 * 1024 * 1024; // 30 MB
+
+// Configuración de multer para el VIDEO de presentación: solo video/*,
+// máximo 30 MB. Se guarda en la misma carpeta pública /uploads que las fotos.
+const uploadVideo = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadsDir),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname || '').toLowerCase() || '.mp4';
+      const aleatorio = crypto.randomBytes(16).toString('hex');
+      cb(null, 'video-' + aleatorio + ext);
+    },
+  }),
+  limits: { fileSize: MAX_VIDEO_BYTES },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype && file.mimetype.startsWith('video/')) {
+      cb(null, true);
+    } else {
+      const error = new Error('Tipo de archivo no permitido: solo videos.');
+      error.code = 'INVALID_VIDEO';
+      cb(error);
+    }
+  },
+});
 
 // Valores permitidos para gender y lookingFor.
 const GENEROS = ['', 'mujer', 'hombre', 'no-binario', 'otro'];
@@ -51,7 +76,7 @@ const BUSCA = ['', 'mujeres', 'hombres', 'todos'];
 function armarPerfil(userId) {
   const p = db
     .prepare(
-      'SELECT bio, gender, looking_for, languages, interests, town FROM profiles WHERE user_id = ?'
+      'SELECT bio, gender, looking_for, languages, interests, town, profile_video FROM profiles WHERE user_id = ?'
     )
     .get(userId);
   const u = db
@@ -74,6 +99,8 @@ function armarPerfil(userId) {
       url: '/uploads/' + f.filename,
       position: f.position,
     })),
+    // Video de presentación (público, como las fotos): URL o null.
+    videoUrl: p.profile_video ? '/uploads/' + p.profile_video : null,
     invisibleMode: !!(u && u.invisible_mode),
     verificationStatus: (u && u.verification_status) || 'none',
     isVerified: !!(u && u.is_verified),
@@ -113,7 +140,7 @@ router.get('/:userId', auth, (req, res) => {
   }
 
   const u = db
-    .prepare('SELECT id, display_name, dob, is_verified FROM users WHERE id = ?')
+    .prepare('SELECT id, display_name, dob, is_verified, last_seen, invisible_mode FROM users WHERE id = ?')
     .get(otroId);
   if (!u) {
     return res.status(404).json({ error: 'USER_NOT_FOUND' });
@@ -153,6 +180,8 @@ router.get('/:userId', auth, (req, res) => {
   // le muestran a otros usuarios (isVerified sí es público: el badge ✅).
   delete p.invisibleMode;
   delete p.verificationStatus;
+  // Estado en línea: si el otro está en modo invisible, aparece desconectado.
+  const pres = presencia(u.last_seen, u.invisible_mode);
   return res.json({
     profile: Object.assign(
       {
@@ -160,6 +189,8 @@ router.get('/:userId', auth, (req, res) => {
         displayName: u.display_name,
         age: calcularEdad(u.dob),
         isVerified: !!u.is_verified,
+        online: pres.online,
+        lastSeen: pres.lastSeen,
       },
       p
     ),
@@ -290,6 +321,54 @@ router.delete('/photos/:id', auth, (req, res) => {
     // El archivo ya no existía; igual borramos el registro.
   }
   db.prepare('DELETE FROM photos WHERE id = ?').run(req.params.id);
+
+  return res.json({ ok: true });
+});
+
+// POST /api/profile/video — Sube el video de presentación (campo "video").
+// Solo UNO por perfil: si ya había, el viejo se borra del disco.
+router.post('/video', auth, uploadVideo.single('video'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'NO_FILE' });
+  }
+
+  const anterior = db
+    .prepare('SELECT profile_video FROM profiles WHERE user_id = ?')
+    .get(req.userId);
+
+  db.prepare('UPDATE profiles SET profile_video = ?, updated_at = ? WHERE user_id = ?')
+    .run(req.file.filename, new Date().toISOString(), req.userId);
+
+  // Borra el video anterior para no acumular archivos huérfanos.
+  if (anterior && anterior.profile_video) {
+    try {
+      fs.unlinkSync(path.join(uploadsDir, anterior.profile_video));
+    } catch (e) {
+      // Ya no existía; no pasa nada.
+    }
+  }
+
+  return res.status(201).json({ videoUrl: '/uploads/' + req.file.filename });
+});
+
+// DELETE /api/profile/video — Borra el video de presentación propio.
+router.delete('/video', auth, (req, res) => {
+  const anterior = db
+    .prepare('SELECT profile_video FROM profiles WHERE user_id = ?')
+    .get(req.userId);
+
+  if (!anterior || !anterior.profile_video) {
+    return res.status(404).json({ error: 'VIDEO_NOT_FOUND' });
+  }
+
+  db.prepare('UPDATE profiles SET profile_video = NULL, updated_at = ? WHERE user_id = ?')
+    .run(new Date().toISOString(), req.userId);
+
+  try {
+    fs.unlinkSync(path.join(uploadsDir, anterior.profile_video));
+  } catch (e) {
+    // El archivo ya no existía; igual borramos el registro.
+  }
 
   return res.json({ ok: true });
 });

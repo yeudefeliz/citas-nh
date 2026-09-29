@@ -9,6 +9,7 @@ const db = require('../db');
 const { generarCodigoRef } = require('../db');
 const { auth, getJwtSecret } = require('../middleware/auth');
 const { emailValido, zipValido, dobValida, calcularEdad } = require('../utils/validacion');
+const { grantAchievement } = require('../utils/achievements');
 
 const router = express.Router();
 
@@ -48,6 +49,13 @@ function aplicarReferido(codigo, nuevoUserId) {
   const actual = invitador.bonus_superlikes || 0;
   const nuevo = Math.min(BONUS_MAXIMO, actual + BONUS_POR_REFERIDO);
   db.prepare('UPDATE users SET bonus_superlikes = ? WHERE id = ?').run(nuevo, invitador.id);
+  // Logro "sharer": invitó a 3 amigos (el invitador lo verá en su perfil).
+  const invitados = db
+    .prepare('SELECT COUNT(*) AS n FROM users WHERE referred_by = ?')
+    .get(invitador.id).n;
+  if (invitados >= 3) {
+    grantAchievement(invitador.id, 'sharer');
+  }
 }
 
 // POST /api/auth/register — Crea la cuenta y devuelve el token de sesión.
@@ -151,21 +159,33 @@ router.get('/me', auth, (req, res) => {
   });
 });
 
-// DELETE /api/auth/account — Borra la cuenta, sus fotos del disco y todo lo
-// relacionado (las tablas hijas se borran solas por ON DELETE CASCADE).
+// DELETE /api/auth/account — Borra la cuenta, sus fotos y su video del
+// disco y todo lo relacionado (las tablas hijas se borran solas por ON
+// DELETE CASCADE).
 router.delete('/account', auth, (req, res) => {
   const fotos = db
     .prepare('SELECT filename FROM photos WHERE user_id = ?')
     .all(req.userId);
+  const perfil = db
+    .prepare('SELECT profile_video FROM profiles WHERE user_id = ?')
+    .get(req.userId);
 
   db.prepare('DELETE FROM users WHERE id = ?').run(req.userId);
 
-  // Borrar los archivos de foto del disco (si alguno falla, no rompemos nada).
+  // Borrar los archivos de foto y el video del disco (si alguno falla,
+  // no rompemos nada).
   for (const foto of fotos) {
     try {
       fs.unlinkSync(path.join(uploadsDir, foto.filename));
     } catch (e) {
       // El archivo ya no existía; seguimos con el siguiente.
+    }
+  }
+  if (perfil && perfil.profile_video) {
+    try {
+      fs.unlinkSync(path.join(uploadsDir, perfil.profile_video));
+    } catch (e) {
+      // El archivo ya no existía.
     }
   }
 

@@ -169,6 +169,27 @@ db.exec(`
     UNIQUE(message_id, user_id)
   );
   CREATE INDEX IF NOT EXISTS idx_reactions_msg ON message_reactions(message_id);
+
+  -- Planes de cita propuestos dentro de un chat (match).
+  CREATE TABLE IF NOT EXISTS date_plans (
+    id INTEGER PRIMARY KEY,
+    match_id INTEGER REFERENCES matches(id) ON DELETE CASCADE,
+    created_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    place TEXT NOT NULL,
+    date_time TEXT NOT NULL,
+    note TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'proposed',
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_dateplans_match ON date_plans(match_id, id);
+
+  -- Logros de gamificación (uno por usuario y código).
+  CREATE TABLE IF NOT EXISTS achievements (
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    earned_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, code)
+  );
 `);
 
 // --- Migración: columnas premium (Stripe) ---------------------------------
@@ -200,16 +221,26 @@ if (!columnasVotes.includes('is_super')) {
   db.prepare('ALTER TABLE votes ADD COLUMN is_super INTEGER NOT NULL DEFAULT 0').run();
 }
 
-// --- Migración: modo invisible + verificación ---------------------------
+// --- Migración: modo invisible + verificación + última conexión --------
 const nuevasColumnasUsers = {
   invisible_mode: 'INTEGER NOT NULL DEFAULT 0',
   verification_status: "TEXT NOT NULL DEFAULT 'none'",
   is_verified: 'INTEGER NOT NULL DEFAULT 0',
+  last_seen: 'TEXT',
 };
 for (const [nombre, tipo] of Object.entries(nuevasColumnasUsers)) {
   if (!columnasUsers.includes(nombre)) {
     db.prepare(`ALTER TABLE users ADD COLUMN ${nombre} ${tipo}`).run();
   }
+}
+
+// --- Migración: video de presentación en el perfil ----------------------
+const columnasProfiles = db
+  .prepare('PRAGMA table_info(profiles)')
+  .all()
+  .map((c) => c.name);
+if (!columnasProfiles.includes('profile_video')) {
+  db.prepare('ALTER TABLE profiles ADD COLUMN profile_video TEXT').run();
 }
 
 // --- Migración: mensajes de voz y regalos (columnas type y audio_url) ----

@@ -7,6 +7,7 @@ const express = require('express');
 const db = require('../db');
 const { auth } = require('../middleware/auth');
 const { limpiarTexto } = require('../utils/validacion');
+const { grantAchievement } = require('../utils/achievements');
 
 const router = express.Router();
 
@@ -112,6 +113,7 @@ router.post('/:id/rsvp', auth, (req, res) => {
     .get(eventoId, req.userId);
 
   let voy;
+  let nuevosLogros = [];
   if (existe) {
     db.prepare('DELETE FROM event_rsvps WHERE id = ?').run(existe.id);
     voy = false;
@@ -120,13 +122,20 @@ router.post('/:id/rsvp', auth, (req, res) => {
       'INSERT INTO event_rsvps (event_id, user_id, created_at) VALUES (?, ?, ?)'
     ).run(eventoId, req.userId, new Date().toISOString());
     voy = true;
+    // Logro "social": RSVP a 3 eventos (distintos o no).
+    const asistencias = db
+      .prepare('SELECT COUNT(*) AS n FROM event_rsvps WHERE user_id = ?')
+      .get(req.userId).n;
+    if (asistencias >= 3 && grantAchievement(req.userId, 'social')) {
+      nuevosLogros.push('social');
+    }
   }
 
   const conteo = db
     .prepare('SELECT COUNT(*) AS n FROM event_rsvps WHERE event_id = ?')
     .get(eventoId).n;
 
-  return res.json({ rsvp: voy, attendeeCount: conteo });
+  return res.json({ rsvp: voy, attendeeCount: conteo, newAchievements: nuevosLogros });
 });
 
 module.exports = router;
