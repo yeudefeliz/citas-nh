@@ -147,6 +147,18 @@ function registrarRegalo(senderId, matchId, giftId) {
      VALUES (?, ?, ?, 'gift', ?)`
   ).run(match.id, senderId, regalo.id, ahora);
 
+  // Push al que recibe el regalo.
+  try {
+    const { sendPush } = require('../utils/push');
+    const quien = db.prepare('SELECT display_name FROM users WHERE id = ?').get(senderId);
+    sendPush(receiverId, 'gift', {
+      name: (quien && quien.display_name) || '',
+      url: '/#/chat/' + match.id,
+    });
+  } catch (e) {
+    /* el regalo igual quedó registrado */
+  }
+
   return true;
 }
 

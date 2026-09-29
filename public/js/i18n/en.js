@@ -368,4 +368,30 @@ window.I18N_EN = {
   ach_verified: "Verified",
   ach_social: "Social life",
   ach_sharer: "Ambassador",
+
+  // ---- Welcome bonus ----
+  welcome_title: "Welcome to Citas NH! 🎁",
+  welcome_text: "Here are {n} free Super Likes to get you started 💖",
+  welcome_cta: "Let's go! 🔥",
+
+  // ---- System message ----
+  match_welcome: "🎉 It's a match! Say hi with an icebreaker 🧊",
+
+  // ---- Push notifications ----
+  push_title: "Notifications",
+  push_on: "On",
+  push_off: "Off",
+  push_enabled: "Notifications enabled 🔔",
+  push_disabled: "Notifications off",
+  push_denied: "Permission denied. Enable them in your browser settings.",
+  push_unsupported: "Your browser doesn't support notifications",
+  push_notConfigured: "Notifications not configured yet",
+
+  // ---- Map ----
+  nav_map: "Map",
+  map_title: "Singles nearby",
+  map_desc: "See where Citas NH people are across New Hampshire 🗺️",
+  map_popup: "👥 {n} near {town}",
+  map_empty: "No active singles on the map yet. Invite your friends! 📣",
+  map_fail: "Couldn't load the map. Check your connection.",
 };

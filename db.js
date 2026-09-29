@@ -183,6 +183,18 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_dateplans_match ON date_plans(match_id, id);
 
+  -- Suscripciones Web Push (una por endpoint de navegador/dispositivo).
+  CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    lang TEXT NOT NULL DEFAULT 'es',
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
+
   -- Logros de gamificación (uno por usuario y código).
   CREATE TABLE IF NOT EXISTS achievements (
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -232,6 +244,11 @@ for (const [nombre, tipo] of Object.entries(nuevasColumnasUsers)) {
   if (!columnasUsers.includes(nombre)) {
     db.prepare(`ALTER TABLE users ADD COLUMN ${nombre} ${tipo}`).run();
   }
+}
+
+// --- Migración: bono de bienvenida (3 super likes al registrarse) -----------
+if (!columnasUsers.includes('welcome_bonus_claimed')) {
+  db.prepare('ALTER TABLE users ADD COLUMN welcome_bonus_claimed INTEGER NOT NULL DEFAULT 0').run();
 }
 
 // --- Migración: video de presentación en el perfil ----------------------

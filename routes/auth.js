@@ -108,12 +108,19 @@ router.post('/register', (req, res) => {
     ahora
   );
 
+  // Bono de bienvenida: 3 Super Likes gratis para el usuario nuevo.
+  const BONO_BIENVENIDA = 3;
+  db.prepare(
+    'UPDATE users SET bonus_superlikes = bonus_superlikes + ?, welcome_bonus_claimed = 1 WHERE id = ?'
+  ).run(BONO_BIENVENIDA, resultado.lastInsertRowid);
+
   // ¿Vino con código de referido? El invitador gana 5 super likes extra.
   aplicarReferido(referralCode, resultado.lastInsertRowid);
 
   const token = firmarToken(resultado.lastInsertRowid);
   return res.status(201).json({
     token,
+    welcomeBonus: BONO_BIENVENIDA, // el frontend muestra el modal de bienvenida
     user: {
       id: resultado.lastInsertRowid,
       email: emailLimpio,

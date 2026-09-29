@@ -369,4 +369,30 @@ window.I18N = {
   ach_verified: "Verificado",
   ach_social: "Vida social",
   ach_sharer: "Embajador",
+
+  // ---- Bono de bienvenida ----
+  welcome_title: "¡Bienvenido a Citas NH! 🎁",
+  welcome_text: "Te regalamos {n} Super Likes para empezar con el pie derecho 💖",
+  welcome_cta: "¡A ligar! 🔥",
+
+  // ---- Mensaje del sistema ----
+  match_welcome: "🎉 ¡Es un match! Saluda con un rompehielos 🧊",
+
+  // ---- Notificaciones push ----
+  push_title: "Notificaciones",
+  push_on: "Activadas",
+  push_off: "Apagadas",
+  push_enabled: "Notificaciones activadas 🔔",
+  push_disabled: "Notificaciones apagadas",
+  push_denied: "Permiso denegado. Actívalas en los ajustes del navegador.",
+  push_unsupported: "Tu navegador no soporta notificaciones",
+  push_notConfigured: "Notificaciones no configuradas todavía",
+
+  // ---- Mapa ----
+  nav_map: "Mapa",
+  map_title: "Solteros cerca",
+  map_desc: "Mira dónde hay más gente de Citas NH en New Hampshire 🗺️",
+  map_popup: "👥 {n} cerca de {town}",
+  map_empty: "Todavía no hay solteros activos en el mapa. ¡Invita a tus panas! 📣",
+  map_fail: "No se pudo cargar el mapa. Revisa tu conexión.",
 };

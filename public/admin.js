@@ -45,6 +45,10 @@ const ADMIN_STR = {
     colPlan: "Plan",
     planPremium: "Premium",
     planFree: "Gratis",
+    townTitle: "Usuarios por pueblo",
+    colZip: "ZIP",
+    colCount: "Usuarios",
+    colPct: "%",
     loadError: "No se pudo cargar el panel.",
   },
   en: {
@@ -84,6 +88,10 @@ const ADMIN_STR = {
     colPlan: "Plan",
     planPremium: "Premium",
     planFree: "Free",
+    townTitle: "Users by town",
+    colZip: "ZIP",
+    colCount: "Users",
+    colPct: "%",
     loadError: "Couldn't load the dashboard.",
   },
 };
@@ -192,14 +200,15 @@ async function renderDashboard() {
   document.getElementById("app-title").textContent = at("title");
   root.innerHTML = `<h2>📊 ${at("dashboardTitle")}</h2><p class="muted">${at("loading")}</p>`;
 
-  let overview, usersSeries, activity, recent, revenue;
+  let overview, usersSeries, activity, recent, revenue, byTown;
   try {
-    [overview, usersSeries, activity, recent, revenue] = await Promise.all([
+    [overview, usersSeries, activity, recent, revenue, byTown] = await Promise.all([
       apiAdmin("/api/admin/overview"),
       apiAdmin("/api/admin/users?days=30"),
       apiAdmin("/api/admin/activity?days=30"),
       apiAdmin("/api/admin/recent"),
       apiAdmin("/api/admin/revenue"),
+      apiAdmin("/api/admin/users-by-town"),
     ]);
   } catch (err) {
     // Token inválido o expirado → volver al login.
@@ -271,6 +280,28 @@ async function renderDashboard() {
           </tbody>
         </table>
       </div>
+    </div>
+
+    <div class="chart-card">
+      <h3>🗺️ ${at("townTitle")}</h3>
+      <canvas id="ch-towns" class="chart"></canvas>
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead><tr>
+            <th>${at("colTown")}</th><th>${at("colZip")}</th>
+            <th>${at("colCount")}</th><th>${at("colPct")}</th>
+          </tr></thead>
+          <tbody>
+            ${(byTown.towns || []).map((x) => `
+              <tr>
+                <td>${esc(x.town)}</td>
+                <td class="muted">${esc(x.zip)}</td>
+                <td><b>${x.count}</b></td>
+                <td>${x.pct}%</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
     </div>`;
 
   document.getElementById("admin-logout").addEventListener("click", () => {
@@ -286,6 +317,7 @@ async function renderDashboard() {
       { series: activity.matches, color: "#8b5cf6" },
       { series: activity.messages, color: "#3b82f6" },
     ]);
+    drawTownBars(document.getElementById("ch-towns"), byTown.towns || []);
   });
 }
 
@@ -392,6 +424,42 @@ function drawLines(canvas, list) {
     });
   });
   drawDateLabels(ctx, list[0].series, ax);
+}
+
+// Barras horizontales para "usuarios por pueblo": nombre a la izquierda,
+// barra con degradado y conteo + % a la derecha.
+function drawTownBars(canvas, towns) {
+  const c = setupCanvas(canvas);
+  if (!c || !towns.length) return;
+  const { ctx, w, h } = c;
+  const top = towns.slice(0, 12);
+  const max = Math.max(1, ...top.map((t) => t.count));
+  const padL = 118, padR = 24, padT = 10, padB = 12;
+  const rowH = (h - padT - padB) / top.length;
+  ctx.font = "11px system-ui";
+  top.forEach((t, i) => {
+    const y = padT + i * rowH;
+    ctx.fillStyle = "#5b4a58";
+    ctx.textAlign = "right";
+    ctx.fillText(String(t.town).slice(0, 17), padL - 8, y + rowH / 2 + 4);
+    const bw = ((w - padL - padR - 70) * t.count) / max;
+    const g = ctx.createLinearGradient(padL, 0, padL + Math.max(bw, 1), 0);
+    g.addColorStop(0, "#ff2e63");
+    g.addColorStop(1, "#ff2e6366");
+    ctx.fillStyle = g;
+    const bh = Math.min(rowH - 8, 18);
+    const by = y + (rowH - bh) / 2;
+    if (ctx.roundRect) {
+      ctx.beginPath();
+      ctx.roundRect(padL, by, Math.max(bw, 2), bh, 4);
+      ctx.fill();
+    } else {
+      ctx.fillRect(padL, by, Math.max(bw, 2), bh);
+    }
+    ctx.fillStyle = "#5b4a58";
+    ctx.textAlign = "left";
+    ctx.fillText(t.count + " (" + t.pct + "%)", padL + bw + 6, y + rowH / 2 + 4);
+  });
 }
 
 /* ---------- 6. Arranque ---------- */

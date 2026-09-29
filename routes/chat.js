@@ -11,6 +11,8 @@ const multer = require('multer');
 const db = require('../db');
 const { auth, getJwtSecret } = require('../middleware/auth');
 const { grantAchievement } = require('../utils/achievements');
+const { presencia } = require('../utils/presence');
+const { sendPush } = require('../utils/push');
 const jwt = require('jsonwebtoken');
 
 const router = express.Router();
@@ -159,6 +161,27 @@ router.get('/:matchId/messages', auth, (req, res) => {
   return res.json({ messages: adjuntarPlanes(mensajes, req.userId) });
 });
 
+// Push de "nuevo mensaje" al otro miembro, solo si NO está en línea
+// (si está en línea ya lo ve por el polling; así no spameamos).
+function pushSiAusente(matchId, emisorId, receptorId) {
+  try {
+    const receptor = db
+      .prepare('SELECT last_seen, invisible_mode FROM users WHERE id = ?')
+      .get(receptorId);
+    if (!receptor) return;
+    if (presencia(receptor.last_seen, receptor.invisible_mode).online) return;
+    const emisor = db
+      .prepare('SELECT display_name FROM users WHERE id = ?')
+      .get(emisorId);
+    sendPush(receptorId, 'message', {
+      name: (emisor && emisor.display_name) || '',
+      url: '/#/chat/' + matchId,
+    });
+  } catch (e) {
+    /* el mensaje igual se envió */
+  }
+}
+
 // POST /api/chat/:matchId/messages — Envía un mensaje (texto ≤ 1000, no vacío).
 router.post('/:matchId/messages', auth, (req, res) => {
   const match = obtenerMatch(req.params.matchId, req.userId);
@@ -194,6 +217,8 @@ router.post('/:matchId/messages', auth, (req, res) => {
   if (enviados >= 50 && grantAchievement(req.userId, 'chatterbox')) {
     nuevosLogros.push('chatterbox');
   }
+
+  pushSiAusente(match.id, req.userId, otroId);
 
   return res.status(201).json({
     message: {
@@ -245,6 +270,8 @@ router.post('/:matchId/voice', auth, uploadVoz.single('audio'), (req, res) => {
   if (enviados >= 50 && grantAchievement(req.userId, 'chatterbox')) {
     nuevosLogros.push('chatterbox');
   }
+
+  pushSiAusente(match.id, req.userId, otroId);
 
   return res.status(201).json({
     message: {
@@ -434,6 +461,21 @@ router.post('/:matchId/dateplan/:id/respond', auth, (req, res) => {
   const acepta = req.body && (req.body.accept === true || req.body.accept === 'true' || req.body.accept === 1);
   const nuevoEstado = acepta ? 'accepted' : 'declined';
   db.prepare('UPDATE date_plans SET status = ? WHERE id = ?').run(nuevoEstado, planId);
+
+  // Push al que propuso la cita cuando el otro la acepta.
+  if (acepta) {
+    try {
+      const quien = db
+        .prepare('SELECT display_name FROM users WHERE id = ?')
+        .get(req.userId);
+      sendPush(fila.created_by, 'dateplan_accepted', {
+        name: (quien && quien.display_name) || '',
+        url: '/#/chat/' + match.id,
+      });
+    } catch (e) {
+      /* la respuesta igual quedó guardada */
+    }
+  }
 
   const ahora = new Date().toISOString();
   const msg = db

@@ -6,6 +6,7 @@
 //   GET  /api/admin/activity?days=30 → serie diaria de likes, matches, mensajes
 //   GET  /api/admin/recent      → últimos 20 usuarios (SIN password_hash)
 //   GET  /api/admin/revenue     → desglose de ingresos estimados
+//   GET  /api/admin/users-by-town → usuarios por pueblo/ZIP con %
 //
 // SEGURIDAD:
 // - La clave del admin sale de la variable de entorno ADMIN_KEY.
@@ -264,6 +265,46 @@ router.get('/admin/revenue', adminAuth, (req, res) => {
     },
     grandTotalUSD: ((premiumCents + giftCents + boostCents) / 100).toFixed(2),
   });
+});
+
+// --- GET /api/admin/users-by-town → usuarios por pueblo/ZIP ----------------
+// [{town, zip, count, pct}]. El pueblo sale del perfil; si está vacío se
+// agrupa como "—". El ZIP es el más común de ese pueblo.
+router.get('/admin/users-by-town', adminAuth, (req, res) => {
+  const total = db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
+  const filas = db
+    .prepare(
+      `SELECT TRIM(COALESCE(p.town, '')) AS town, u.zip AS zip, COUNT(*) AS n
+       FROM users u
+       LEFT JOIN profiles p ON p.user_id = u.id
+       GROUP BY TRIM(COALESCE(p.town, '')), u.zip
+       ORDER BY n DESC`
+    )
+    .all();
+
+  // Agrupa por pueblo; zip = el más común de ese pueblo.
+  const porPueblo = {};
+  for (const f of filas) {
+    const pueblo = f.town || '—';
+    if (!porPueblo[pueblo]) porPueblo[pueblo] = { count: 0, zips: {} };
+    porPueblo[pueblo].count += f.n;
+    const z = (f.zip || '').trim();
+    if (z) porPueblo[pueblo].zips[z] = (porPueblo[pueblo].zips[z] || 0) + f.n;
+  }
+
+  const towns = Object.entries(porPueblo)
+    .map(([town, d]) => {
+      const topZip = Object.entries(d.zips).sort((a, b) => b[1] - a[1])[0];
+      return {
+        town,
+        zip: topZip ? topZip[0] : '',
+        count: d.count,
+        pct: total ? Math.round((d.count / total) * 1000) / 10 : 0,
+      };
+    })
+    .sort((a, b) => b.count - a.count);
+
+  return res.json({ total, towns });
 });
 
 module.exports = router;

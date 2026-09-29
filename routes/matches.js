@@ -8,6 +8,7 @@ const { calcularEdad } = require('../utils/validacion');
 const { esPremium } = require('./billing');
 const { presencia } = require('../utils/presence');
 const { grantAchievement } = require('../utils/achievements');
+const { sendPush } = require('../utils/push');
 
 // Likes por día para cuentas gratis (los premium no tienen límite).
 const FREE_LIKES_POR_DIA = 10;
@@ -21,6 +22,21 @@ function urlsFotos(userId) {
     .prepare('SELECT filename FROM photos WHERE user_id = ? ORDER BY position ASC, id ASC')
     .all(userId);
   return fotos.map((f) => '/uploads/' + f.filename);
+}
+
+// Mensaje de bienvenida del sistema al crearse un match.
+// sender_id NULL + type='system'. El texto es una clave i18n que el
+// frontend traduce ("match_welcome"). No cuenta para logros (sender_id
+// NULL no suma en chatterbox) ni dispara push.
+function insertarMensajeSistema(matchId) {
+  try {
+    db.prepare(
+      `INSERT INTO messages (match_id, sender_id, text, type, created_at)
+       VALUES (?, NULL, 'match_welcome', 'system', ?)`
+    ).run(matchId, new Date().toISOString());
+  } catch (e) {
+    /* el match igual funciona sin el mensaje */
+  }
 }
 
 // Lógica compartida de votar. Lanza {status, code} si algo es inválido.
@@ -97,6 +113,8 @@ function votar(yo, targetUserId, vote, isSuper) {
   // --- Logros ---
   const nuevosLogros = [];
   if (vote === 'like') {
+    // Push: al que recibe el like (el match, si lo hay, manda su propio push).
+    sendPush(targetUserId, isSuper ? 'superlike' : 'like', { url: '/#/matches' });
     // first_like: su primer like.
     if (grantAchievement(yo, 'first_like')) nuevosLogros.push('first_like');
     // popular: el que recibe llegó a 10 likes recibidos.
@@ -128,7 +146,13 @@ function votar(yo, targetUserId, vote, isSuper) {
           .prepare('INSERT INTO matches (user1_id, user2_id, created_at) VALUES (?, ?, ?)')
           .run(user1, user2, new Date().toISOString());
         match = { id: nuevo.lastInsertRowid };
+        // Mensaje de bienvenida del sistema en el chat nuevo.
+        insertarMensajeSistema(match.id);
       }
+
+      // Push de match para los dos.
+      sendPush(yo, 'match', { url: '/#/chat/' + match.id });
+      sendPush(targetUserId, 'match', { url: '/#/chat/' + match.id });
 
       // first_match: primer match de cada uno.
       if (grantAchievement(yo, 'first_match')) nuevosLogros.push('first_match');

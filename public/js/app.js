@@ -356,6 +356,22 @@ function showPremiumModal() {
   overlay.querySelector("#pm-no").addEventListener("click", () => overlay.remove());
 }
 
+/* ----- Bono de bienvenida 🎁 ----- */
+// Modal que se muestra una sola vez tras registrarse: 3 Super Likes gratis.
+function showWelcomeBonusModal(cantidad) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-heart" aria-hidden="true">🎁</div>
+      <h2>${t("welcome_title")}</h2>
+      <p>${t("welcome_text").replace("{n}", cantidad)}</p>
+      <button class="btn btn-primary" id="wb-ok">${t("welcome_cta")}</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector("#wb-ok").addEventListener("click", () => overlay.remove());
+}
+
 /* ---------- 4. Router ---------- */
 const app = document.getElementById("app");
 const bottomnav = document.getElementById("bottomnav");
@@ -421,6 +437,7 @@ function route() {
     case "#/ajustes": return renderSettings();
     case "#/premium": return renderPremium();
     case "#/eventos": return renderEvents();
+    case "#/mapa": return renderMap();
     default: location.hash = "#/descubrir";
   }
 }
@@ -531,7 +548,12 @@ function renderRegister() {
         }),
       });
       localStorage.setItem(LS_TOKEN, data.token); // guarda el JWT
+      const bono = data.welcomeBonus || 0;
       location.hash = "#/descubrir";
+      // Bono de bienvenida: modal con los Super Likes de regalo (una sola vez).
+      if (bono > 0) {
+        setTimeout(() => showWelcomeBonusModal(bono), 500);
+      }
     } catch (err) {
       // Cada código (INVALID_EMAIL, WEAK_PASSWORD, UNDERAGE…) tiene su traducción.
       showFormError("register-error", err);
@@ -1488,10 +1510,22 @@ async function renderChat(matchId) {
   // Cada mensaje lleva su fila de reacciones (❤️ 😂 🔥 😮 😢 👍).
   const appendMsgs = (msgs) => {
     msgs.forEach((m) => {
+      const tipo = m.type || "text";
+      // Mensaje del sistema (ej. bienvenida de match): burbuja centrada,
+      // sin reacciones ni picker. El texto es una clave i18n.
+      if (tipo === "system") {
+        const sdiv = document.createElement("div");
+        sdiv.className = "msg msg-system";
+        sdiv.setAttribute("data-mid", m.id);
+        const sp = document.createElement("p");
+        sp.textContent = t(m.text === "match_welcome" ? "match_welcome" : m.text);
+        sdiv.appendChild(sp);
+        box.appendChild(sdiv);
+        return;
+      }
       const div = document.createElement("div");
       div.className = "msg" + (myId && String(m.senderId) === String(myId) ? " mine" : "");
       div.setAttribute("data-mid", m.id);
-      const tipo = m.type || "text";
       if (tipo === "voice" && m.audioUrl) {
         div.classList.add("msg-voice");
         const audio = document.createElement("audio");
@@ -2658,7 +2692,183 @@ async function renderEvents() {
   });
 }
 
+/* ----- #/mapa ----- */
+// Carga Leaflet desde el CDN solo cuando se abre el mapa (no pesa al inicio).
+function cargarLeaflet() {
+  if (window.L) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const css = document.createElement("link");
+    css.rel = "stylesheet";
+    css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+    document.head.appendChild(css);
+    const js = document.createElement("script");
+    js.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    js.onload = () => resolve();
+    js.onerror = () => reject(new Error("LEAFLET_FAIL"));
+    document.head.appendChild(js);
+  });
+}
+
+// Mapa de solteros: solo CONTEOS por zona (nunca identidades).
+// Respeta el modo invisible (el backend excluye a esos usuarios).
+async function renderMap() {
+  app.innerHTML = `
+    <section class="mapview">
+      <h2>🗺️ ${t("map_title")}</h2>
+      <p class="muted">${t("map_desc")}</p>
+      <div id="map" class="map-box"><div class="skel" style="height:100%;min-height:320px" aria-hidden="true"></div></div>
+    </section>`;
+
+  let singles = [];
+  try {
+    // GET /api/map/singles → [{zip, town, lat, lng, count}]
+    singles = (await api("/api/map/singles")).singles || [];
+  } catch (err) {
+    app.innerHTML = errorHtml(err);
+    return;
+  }
+
+  try {
+    await cargarLeaflet();
+  } catch (e) {
+    document.getElementById("map").innerHTML =
+      `<p class="muted center">${t("map_fail")}</p>`;
+    return;
+  }
+
+  const box = document.getElementById("map");
+  if (!box) return;
+  box.innerHTML = ""; // quita el skeleton
+  const mapa = window.L.map("map").setView([43.65, -71.55], 8); // centro de NH
+  window.L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  }).addTo(mapa);
+
+  if (!singles.length) {
+    window.L.popup()
+      .setLatLng([43.65, -71.55])
+      .setContent(t("map_empty"))
+      .openOn(mapa);
+    return;
+  }
+  for (const s of singles) {
+    const icono = window.L.divIcon({
+      className: "map-pin",
+      html: `<span><b>${s.count}</b></span>`,
+      iconSize: [38, 38],
+      iconAnchor: [19, 19],
+    });
+    window.L.marker([s.lat, s.lng], { icon: icono })
+      .addTo(mapa)
+      .bindPopup(
+        `<b>${t("map_popup").replace("{n}", s.count).replace("{town}", esc(s.town || s.zip))}</b>`
+      );
+  }
+}
+
 /* ----- #/ajustes ----- */
+/* ----- Notificaciones push (Web Push) ----- */
+// ¿El navegador soporta push? (iOS lo soporta solo si la app está instalada).
+function pushSoportado() {
+  return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+
+function claveVapidABytes(base64) {
+  const normal = base64.replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(normal);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+// Activa el push: pide permiso, se suscribe y guarda la suscripción en el backend.
+async function activarPush() {
+  // GET /api/push/vapid-public-key → {publicKey} (pública por diseño)
+  const { publicKey } = await api("/api/push/vapid-public-key");
+  if (!publicKey) {
+    toast(t("push_notConfigured"));
+    return false;
+  }
+  const permiso = await Notification.requestPermission();
+  if (permiso !== "granted") {
+    toast(t("push_denied"));
+    return false;
+  }
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: claveVapidABytes(publicKey),
+  });
+  // POST /api/push/subscribe {subscription, lang}
+  await api("/api/push/subscribe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ subscription: sub.toJSON(), lang }),
+  });
+  return true;
+}
+
+// Desactiva el push: borra la suscripción del backend y del navegador.
+async function desactivarPush() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      try {
+        await api("/api/push/unsubscribe", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        });
+      } catch (e) {
+        /* seguimos: lo importante es desuscribir el navegador */
+      }
+      await sub.unsubscribe();
+    }
+  } catch (e) {
+    /* nada */
+  }
+  return true;
+}
+
+// Pinta la fila de push en Ajustes con el estado real del navegador.
+async function pintarFilaPush() {
+  const row = document.getElementById("push-row");
+  if (!row) return;
+  if (!pushSoportado()) {
+    row.innerHTML = `<span>🔔 ${t("push_title")}</span><span class="muted small">${t("push_unsupported")}</span>`;
+    return;
+  }
+  let activa = false;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    activa = !!(await reg.pushManager.getSubscription());
+  } catch (e) {
+    /* se muestra apagado */
+  }
+  row.innerHTML = `
+    <span>🔔 ${t("push_title")}</span>
+    <label class="switch-row">
+      <input type="checkbox" id="push-toggle"${activa ? " checked" : ""}>
+      <span>${t(activa ? "push_on" : "push_off")}</span>
+    </label>`;
+  const toggle = document.getElementById("push-toggle");
+  toggle.addEventListener("change", async () => {
+    toggle.disabled = true;
+    try {
+      const ok = toggle.checked ? await activarPush() : await desactivarPush();
+      if (!ok && toggle.checked) toggle.checked = false;
+      if (ok) toast(t(toggle.checked ? "push_enabled" : "push_disabled"));
+    } catch (err) {
+      toggle.checked = !toggle.checked;
+      toast(apiErrorMessage(err));
+    } finally {
+      toggle.disabled = false;
+    }
+  });
+}
+
 async function renderSettings() {
   app.innerHTML = `
     <section class="settings">
@@ -2673,6 +2883,8 @@ async function renderSettings() {
       </div>
 
       <div class="setting-row" id="premium-row"><span>👑 Premium</span><span class="muted">${t("common_loading")}</span></div>
+
+      <div class="setting-row" id="push-row"><span>🔔 ${t("push_title")}</span><span class="muted">${t("common_loading")}</span></div>
 
       <div class="setting-block">
         <h3>⛔ ${t("settings_blocked")}</h3>
@@ -2710,6 +2922,9 @@ async function renderSettings() {
   } catch (err) {
     /* sin premium no pasa nada */
   }
+
+  // Fila de notificaciones push: toggle que pide permiso y suscribe el dispositivo.
+  await pintarFilaPush();
 
   // Bloqueados → GET /api/blocks → {blocks:[{userId,displayName}]}
   try {

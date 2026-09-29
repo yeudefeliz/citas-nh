@@ -1390,3 +1390,48 @@ legend { font-weight: 700; font-size: .92rem; padding: 0 8px; }
 @media (max-width: 640px) {
   .card-video { height: 380px; }
 }
+
+/* ----- Mensajes del sistema (bienvenida de match) ----- */
+.msg-system {
+  align-self: center;
+  max-width: 90%;
+  text-align: center;
+  background: linear-gradient(135deg, #fff7ed, #ffe4ef);
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+  font-size: .9rem;
+  color: var(--ink-soft);
+}
+.msg-system p { margin: 0; }
+
+/* ----- Mapa de solteros ----- */
+.map-box {
+  height: 62vh;
+  min-height: 340px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 24px rgba(43, 34, 48, .1);
+  margin-top: 12px;
+}
+.map-box .leaflet-container { font-family: inherit; }
+.map-pin {
+  background: none;
+  border: none;
+}
+.map-pin span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50% 50% 50% 4px;
+  transform: rotate(-45deg);
+  background: var(--grad);
+  color: #fff;
+  font-weight: 800;
+  font-size: .85rem;
+  box-shadow: 0 4px 12px rgba(255, 46, 99, .45);
+  border: 2px solid #fff;
+}
+.map-pin span > * { transform: rotate(45deg); }

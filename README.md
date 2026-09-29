@@ -20,8 +20,22 @@ Variables opcionales (en tu computadora no hacen falta):
 |--------------|---------------------------------------|--------------------------|
 | `PORT`       | Puerto donde escucha el servidor      | `3000`                   |
 | `JWT_SECRET` | Secreto para firmar las sesiones      | uno de desarrollo (avisa en consola) |
+| `ADMIN_KEY` | Clave del panel `/admin` | (sin definir: el panel no existe) |
+| `VAPID_PUBLIC_KEY` | Clave pública Web Push (notificaciones) | (sin definir: push desactivado) |
+| `VAPID_PRIVATE_KEY` | Clave privada Web Push (**secreto**) | (sin definir: push desactivado) |
+| `VAPID_SUBJECT` | Contacto VAPID | `mailto:admin@citas-nh.onrender.com` |
 
 En producción **siempre** define tu propio `JWT_SECRET` largo y aleatorio.
+
+### Notificaciones push (Web Push, gratis)
+
+1. Genera las claves VAPID una sola vez en tu máquina:
+   `npx web-push generate-vapid-keys`
+2. En Render → *Environment* agrega `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` y
+   `VAPID_SUBJECT=mailto:admin@citas-nh.onrender.com`.
+3. **Nunca** subas la clave privada al repositorio.
+4. Sin estas variables la app funciona igual; el toggle de notificaciones
+   en Ajustes avisará que no están configuradas.
 
 ## Cómo subirla gratis (Render, plan gratuito)
 
