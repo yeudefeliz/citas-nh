@@ -944,9 +944,9 @@ legend { font-weight: 700; font-size: .92rem; padding: 0 8px; }
 .verify-row input[type="file"] { max-width: 220px; }
 
 /* Referidos */
-.referral-card { margin: 14px 0; }
+.referral-card { margin: 14px 0; padding: 18px; max-width: 100%; }
 .referral-card h3 { margin-top: 0; font-weight: 800; }
-.referral-code-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+.referral-code-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
 .referral-code {
   font-size: 1.35rem;
   font-weight: 900;
@@ -956,7 +956,16 @@ legend { font-weight: 700; font-size: .92rem; padding: 0 8px; }
   border-radius: 12px;
   padding: 8px 16px;
   color: var(--brand-dark);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
+/* Instalar app (PWA): tarjeta permanente en el perfil */
+.install-card { margin: 14px 0; padding: 18px; max-width: 100%; }
+.install-card h3 { margin-top: 0; font-weight: 800; }
+.install-help { margin: 10px 0 0; }
+/* Logros: mismo relleno que las demás tarjetas del perfil */
+#achievements-card { padding: 18px; max-width: 100%; }
 .ref-note {
   background: linear-gradient(135deg, #fff8e1, #fef3c7);
   border: 1px solid #fde68a;

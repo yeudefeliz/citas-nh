@@ -2292,6 +2292,13 @@ async function renderProfile() {
         <p class="muted">${t("common_loading")}</p>
       </div>
 
+      <div class="card install-card" id="install-card" hidden>
+        <h3>${t("pwa_install_title")}</h3>
+        <p class="muted">${t("pwa_install_desc")}</p>
+        <button class="btn btn-primary" id="install-app-btn">${t("pwa_install_btn")}</button>
+        <p class="muted small install-help" id="install-help" hidden></p>
+      </div>
+
       <div class="card" id="achievements-card">
         <h3>🏆 ${t("achievements_title")}</h3>
         <p class="muted">${t("common_loading")}</p>
@@ -2409,6 +2416,36 @@ async function renderProfile() {
     const card = document.getElementById("achievements-card");
     if (card) card.style.display = "none";
   }
+
+  // Instalar app 📲 → tarjeta permanente en el perfil (no depende solo del banner)
+  (function setupInstallCard() {
+    const card = document.getElementById("install-card");
+    const btn = document.getElementById("install-app-btn");
+    const help = document.getElementById("install-help");
+    if (!card || !btn) return;
+    // Si ya está instalada como app, no mostrar la tarjeta
+    const isStandalone =
+      (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+      window.navigator.standalone === true;
+    if (isStandalone) return; // se queda oculta
+    card.hidden = false;
+    btn.addEventListener("click", async () => {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        try { await deferredInstallPrompt.userChoice; } catch (_) {}
+        deferredInstallPrompt = null;
+        if (typeof pwaBanner !== "undefined" && pwaBanner) pwaBanner.hidden = true;
+        return;
+      }
+      // Sin prompt nativo: instrucciones según la plataforma
+      const ua = navigator.userAgent || "";
+      let key = "pwa_install_manual_desktop";
+      if (/iphone|ipad|ipod/i.test(ua)) key = "pwa_install_manual_ios";
+      else if (/android/i.test(ua)) key = "pwa_install_manual_android";
+      if (help) { help.textContent = t(key); help.hidden = false; }
+      else toast(t(key));
+    });
+  })();
 
   // Video de presentación 🎥 → POST /api/profile/video (multipart, campo "video", máx. 30 MB)
   const videoInput = document.getElementById("video-input");

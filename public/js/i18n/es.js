@@ -401,4 +401,7 @@ window.I18N = {
   pwa_install_desc: "Acceso directo en tu pantalla, como una app normal.",
   pwa_install_btn: "Instalar",
   pwa_install_later: "Ahora no",
+  pwa_install_manual_ios: "En iPhone: toca Compartir y luego «Añadir a pantalla de inicio».",
+  pwa_install_manual_android: "En Android: abre el menú ⋮ del navegador y toca «Instalar app».",
+  pwa_install_manual_desktop: "En tu navegador: abre el menú y elige «Instalar Citas NH».",
 };

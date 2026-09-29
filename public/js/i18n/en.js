@@ -400,4 +400,7 @@ window.I18N_EN = {
   pwa_install_desc: "A home-screen shortcut, just like a regular app.",
   pwa_install_btn: "Install",
   pwa_install_later: "Not now",
+  pwa_install_manual_ios: "On iPhone: tap Share, then 'Add to Home Screen'.",
+  pwa_install_manual_android: "On Android: open the browser menu ⋮ and tap 'Install app'.",
+  pwa_install_manual_desktop: "In your browser: open the menu and choose 'Install Citas NH'.",
 };
