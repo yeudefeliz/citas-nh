@@ -64,6 +64,26 @@ function hayBloqueo(a, b) {
     .get(a, b, b, a);
 }
 
+// Emojis permitidos para reaccionar a mensajes.
+const EMOJIS_REACCION = ['❤️', '😂', '🔥', '😮', '😢', '👍'];
+
+// Arma el resumen de reacciones de un mensaje: [{emoji, count, mine}].
+function resumenReacciones(messageId, userId) {
+  const filas = db
+    .prepare(
+      `SELECT emoji, COUNT(*) AS c,
+              SUM(CASE WHEN user_id = ? THEN 1 ELSE 0 END) AS mia
+       FROM message_reactions WHERE message_id = ?
+       GROUP BY emoji`
+    )
+    .all(userId, messageId);
+  return filas.map((f) => ({
+    emoji: f.emoji,
+    count: f.c,
+    mine: f.mia > 0,
+  }));
+}
+
 // GET /api/chat/:matchId/messages — Historial (con ?after=<id> para traer solo lo nuevo).
 router.get('/:matchId/messages', auth, (req, res) => {
   const match = obtenerMatch(req.params.matchId, req.userId);
@@ -100,6 +120,7 @@ router.get('/:matchId/messages', auth, (req, res) => {
       type: m.type || 'text',
       audioUrl: m.audio_url || null,
       createdAt: m.created_at,
+      reactions: resumenReacciones(m.id, req.userId),
     })),
   });
 });
@@ -139,6 +160,7 @@ router.post('/:matchId/messages', auth, (req, res) => {
       type: 'text',
       audioUrl: null,
       createdAt: ahora,
+      reactions: [],
     },
   });
 });
@@ -179,8 +201,54 @@ router.post('/:matchId/voice', auth, uploadVoz.single('audio'), (req, res) => {
       type: 'voice',
       audioUrl,
       createdAt: ahora,
+      reactions: [],
     },
   });
+});
+
+// POST /api/chat/:matchId/messages/:msgId/react — Reacciona a un mensaje.
+// {emoji}: uno de ❤️ 😂 🔥 😮 😢 👍. Tocar el mismo emoji lo quita (toggle).
+router.post('/:matchId/messages/:msgId/react', auth, (req, res) => {
+  const match = obtenerMatch(req.params.matchId, req.userId);
+  if (!match) {
+    return res.status(404).json({ error: 'MATCH_NOT_FOUND' });
+  }
+  const otroId = match.user1_id === req.userId ? match.user2_id : match.user1_id;
+  if (hayBloqueo(req.userId, otroId)) {
+    return res.status(403).json({ error: 'BLOCKED' });
+  }
+
+  const emoji = req.body && req.body.emoji;
+  if (!EMOJIS_REACCION.includes(emoji)) {
+    return res.status(400).json({ error: 'INVALID_EMOJI' });
+  }
+
+  const msgId = Number(req.params.msgId);
+  const mensaje = db
+    .prepare('SELECT id FROM messages WHERE id = ? AND match_id = ?')
+    .get(msgId, match.id);
+  if (!mensaje) {
+    return res.status(404).json({ error: 'MESSAGE_NOT_FOUND' });
+  }
+
+  const existente = db
+    .prepare('SELECT emoji FROM message_reactions WHERE message_id = ? AND user_id = ?')
+    .get(msgId, req.userId);
+
+  if (existente && existente.emoji === emoji) {
+    // Toggle: mismo emoji → se quita.
+    db.prepare('DELETE FROM message_reactions WHERE message_id = ? AND user_id = ?')
+      .run(msgId, req.userId);
+  } else if (existente) {
+    // Cambia el emoji de su reacción.
+    db.prepare('UPDATE message_reactions SET emoji = ? WHERE message_id = ? AND user_id = ?')
+      .run(emoji, msgId, req.userId);
+  } else {
+    db.prepare('INSERT INTO message_reactions (message_id, user_id, emoji) VALUES (?, ?, ?)')
+      .run(msgId, req.userId, emoji);
+  }
+
+  return res.json({ reactions: resumenReacciones(msgId, req.userId) });
 });
 
 // GET /api/chat/voice/:archivo?token=<JWT> — Sirve la nota de voz.

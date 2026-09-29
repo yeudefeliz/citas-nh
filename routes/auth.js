@@ -6,6 +6,7 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
+const { generarCodigoRef } = require('../db');
 const { auth, getJwtSecret } = require('../middleware/auth');
 const { emailValido, zipValido, dobValida, calcularEdad } = require('../utils/validacion');
 
@@ -29,9 +30,29 @@ function firmarToken(userId) {
   return jwt.sign({ userId }, getJwtSecret(), { expiresIn: '7d' });
 }
 
+// Bonus de referidos: cada invitado válido le suma 5 super likes extra
+// al invitador, con un máximo acumulado de 20.
+const BONUS_POR_REFERIDO = 5;
+const BONUS_MAXIMO = 20;
+
+function aplicarReferido(codigo, nuevoUserId) {
+  if (typeof codigo !== 'string') return;
+  const limpio = codigo.trim().toUpperCase();
+  if (!limpio) return;
+  const invitador = db
+    .prepare('SELECT id, bonus_superlikes FROM users WHERE referral_code = ?')
+    .get(limpio);
+  // El código debe existir y no puede ser el del propio usuario nuevo.
+  if (!invitador || invitador.id === nuevoUserId) return;
+  db.prepare('UPDATE users SET referred_by = ? WHERE id = ?').run(invitador.id, nuevoUserId);
+  const actual = invitador.bonus_superlikes || 0;
+  const nuevo = Math.min(BONUS_MAXIMO, actual + BONUS_POR_REFERIDO);
+  db.prepare('UPDATE users SET bonus_superlikes = ? WHERE id = ?').run(nuevo, invitador.id);
+}
+
 // POST /api/auth/register — Crea la cuenta y devuelve el token de sesión.
 router.post('/register', (req, res) => {
-  const { email, password, displayName, dob, zip } = req.body || {};
+  const { email, password, displayName, dob, zip, referralCode } = req.body || {};
 
   // Validaciones en el servidor (el frontend puede mentir, el servidor no).
   if (!emailValido(email)) {
@@ -69,15 +90,18 @@ router.post('/register', (req, res) => {
 
   const resultado = db
     .prepare(
-      'INSERT INTO users (email, password_hash, display_name, dob, zip, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+      'INSERT INTO users (email, password_hash, display_name, dob, zip, referral_code, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
     )
-    .run(emailLimpio, passwordHash, nombre, dob, zipLimpio, ahora);
+    .run(emailLimpio, passwordHash, nombre, dob, zipLimpio, generarCodigoRef(), ahora);
 
   // Todo usuario nuevo empieza con una fila de perfil vacía.
   db.prepare('INSERT INTO profiles (user_id, updated_at) VALUES (?, ?)').run(
     resultado.lastInsertRowid,
     ahora
   );
+
+  // ¿Vino con código de referido? El invitador gana 5 super likes extra.
+  aplicarReferido(referralCode, resultado.lastInsertRowid);
 
   const token = firmarToken(resultado.lastInsertRowid);
   return res.status(201).json({

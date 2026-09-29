@@ -266,4 +266,43 @@ window.I18N_EN = {
   err_DATE_IN_PAST: "The date can't be in the past.",
   err_EVENT_NOT_FOUND: "Event not found.",
   err_NO_FILE: "No file received.",
+  err_INVALID_EMOJI: "That emoji isn't allowed.",
+  err_MESSAGE_NOT_FOUND: "Message not found.",
+
+  // ---- Stories ----
+  stories_title: "Stories",
+  story_add: "Your story",
+  story_uploading: "Uploading story…",
+  story_uploaded: "Story posted! 📸",
+  story_delete: "Delete story",
+  story_deleteConfirm: "Delete this story?",
+  story_deleted: "Story deleted.",
+  story_empty: "Nobody posted stories today. Be the first! 📸",
+  story_tooBig: "The file is too big (max 15 MB).",
+
+  // ---- Icebreakers ----
+  icebreaker_btn: "Icebreaker",
+  icebreaker_hint: "Don't know what to say? Try an icebreaker 🧊",
+  icebreaker_fail: "Couldn't load the icebreaker.",
+
+  // ---- Reactions ----
+  react_title: "React",
+  react_hint: "Long-press a message to react",
+
+  // ---- Referrals ----
+  referral_title: "Invite & win 🎁",
+  referral_desc: "Share your code: every friend who joins gives you 5 extra super likes (max 20).",
+  referral_code: "Your code",
+  referral_share: "Share on WhatsApp",
+  referral_copied: "Link copied! 📋",
+  referral_joined: "{n} friends joined",
+  referral_bonus: "You have {n} extra super likes ⭐",
+  referral_shareText: "Join Citas NH, the New Hampshire dating app! Sign up with my code:",
+  register_invited: "🎁 You arrived with a friend's code",
+
+  // ---- Top Picks ----
+  toppicks_title: "Top Picks 💎",
+  toppicks_sub: "Elegidos para ti hoy",
+  toppicks_empty: "No hay Top Picks hoy. ¡Sigue descubriendo! 💎",
+  toppicks_premium: "💎 Premium",
 };

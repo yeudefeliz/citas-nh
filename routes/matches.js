@@ -64,15 +64,27 @@ function votar(yo, targetUserId, vote, isSuper) {
   }
 
   // Límite diario de SUPER likes para cuentas gratis (premium: ilimitados).
+  // Los bonus de referidos amplían el límite: cada bonus da 1 super like extra.
   if (isSuper && !premium) {
+    const bonus = db
+      .prepare('SELECT bonus_superlikes FROM users WHERE id = ?')
+      .get(yo).bonus_superlikes || 0;
     const superHoy = db
       .prepare(
         `SELECT COUNT(*) AS c FROM votes
          WHERE voter_id = ? AND vote = 'like' AND is_super = 1 AND ${hoyUTC}`
       )
       .get(yo).c;
-    if (superHoy >= FREE_SUPERLIKES_POR_DIA) {
+    // Los super likes de hoy más allá del gratis consumieron bonus, así que
+    // el cupo real es: 1 gratis + bonus restantes + bonus ya usados hoy.
+    const bonusUsadosHoy = Math.max(0, superHoy - FREE_SUPERLIKES_POR_DIA);
+    const cupo = FREE_SUPERLIKES_POR_DIA + bonus + bonusUsadosHoy;
+    if (superHoy >= cupo) {
       throw { status: 403, code: 'SUPERLIKE_LIMIT_REACHED' };
+    }
+    // Si ya usó el gratis de hoy, este super like consume 1 de bonus.
+    if (superHoy >= FREE_SUPERLIKES_POR_DIA && bonus > 0) {
+      db.prepare('UPDATE users SET bonus_superlikes = bonus_superlikes - 1 WHERE id = ?').run(yo);
     }
   }
 

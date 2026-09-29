@@ -52,6 +52,10 @@ app.use('/api/calls', require('./routes/calls')); // señalización WebRTC
 app.use('/api/verification', require('./routes/verification'));
 app.use('/api/gifts', require('./routes/gifts').router);
 app.use('/api/events', require('./routes/events'));
+app.use('/api/stories', require('./routes/stories'));
+app.use('/api/icebreakers', require('./routes/icebreakers'));
+app.use('/api/referral', require('./routes/referral'));
+app.use('/api/top-picks', require('./routes/toppicks'));
 app.use('/api', require('./routes/social')); // /api/blocks, /api/reports
 app.use('/api', billing.router); // /api/billing/*, /api/admirers
 

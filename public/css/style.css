@@ -665,3 +665,182 @@ legend { font-weight: 600; font-size: .92rem; padding: 0 6px; }
 #ev-toggle {
   margin-bottom: 4px;
 }
+
+/* ---------- Stories 24 h ---------- */
+.stories-bar { margin: 8px 0 4px; }
+.stories-row {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 6px 2px;
+  -webkit-overflow-scrolling: touch;
+}
+.story-wrap { flex: 0 0 auto; }
+.story-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  max-width: 72px;
+}
+.story-circle {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  border: 3px solid var(--brand);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-soft);
+  font-size: 1.5rem;
+}
+.story-circle.is-match { border-color: #f59e0b; }
+.story-circle img { width: 100%; height: 100%; object-fit: cover; }
+.story-add-circle {
+  border-style: dashed;
+  border-color: var(--muted);
+  color: var(--brand);
+  font-size: 1.8rem;
+  font-weight: bold;
+}
+.story-name {
+  font-size: 0.7rem;
+  color: var(--ink);
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Visor fullscreen */
+.story-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sv-media { max-width: 100%; max-height: 100dvh; object-fit: contain; }
+.sv-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 10px 12px;
+  background: linear-gradient(rgba(0,0,0,.55), transparent);
+  z-index: 2;
+}
+.sv-progress { display: flex; gap: 4px; margin-bottom: 8px; }
+.sv-bar { flex: 1; height: 3px; border-radius: 2px; background: rgba(255,255,255,.35); }
+.sv-bar.on { background: #fff; }
+.sv-user { display: flex; justify-content: space-between; align-items: center; color: #fff; }
+.sv-user .btn { color: #fff; }
+.sv-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0,0,0,.35);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  font-size: 1.5rem;
+  cursor: pointer;
+  z-index: 2;
+}
+.sv-prev { left: 8px; }
+.sv-next { right: 8px; }
+
+/* ---------- Top Picks 💎 ---------- */
+.toppicks { margin: 12px 0; }
+.toppicks-head h3 { margin: 0; }
+.toppicks-head p { margin: 2px 0 8px; }
+.toppicks-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  -webkit-overflow-scrolling: touch;
+}
+.pick-card {
+  flex: 0 0 150px;
+  background: var(--card);
+  border: 2px solid #f59e0b; /* borde dorado */
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(245,158,11,.25);
+}
+.pick-photo { width: 100%; height: 140px; object-fit: cover; display: block; }
+.pick-photo.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  background: var(--brand-soft);
+}
+.pick-body { padding: 8px; font-size: 0.85rem; }
+.pick-body p { margin: 2px 0 0; }
+.pick-premium {
+  display: inline-block;
+  font-size: 0.7rem;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 8px;
+  padding: 1px 6px;
+  margin-left: 4px;
+}
+.pick-actions { display: flex; gap: 4px; padding: 0 8px 8px; }
+.pick-actions .btn { flex: 1; padding: 6px 0; }
+
+/* ---------- Reacciones ---------- */
+.reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.react-chip {
+  font-size: 0.85rem;
+  background: var(--brand-soft);
+  border-radius: 12px;
+  padding: 1px 8px;
+  line-height: 1.6;
+}
+.react-chip.mine { outline: 2px solid var(--brand); }
+.react-chip b { margin-left: 3px; font-size: 0.75rem; }
+.react-modal { text-align: center; }
+.react-emojis { display: flex; justify-content: center; gap: 6px; margin: 12px 0; flex-wrap: wrap; }
+.react-emoji {
+  font-size: 2rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  width: 56px;
+  height: 56px;
+  cursor: pointer;
+}
+.react-emoji:active { transform: scale(1.15); }
+
+/* ---------- Referidos ---------- */
+.referral-card { margin: 12px 0; }
+.referral-card h3 { margin-top: 0; }
+.referral-code-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+.referral-code {
+  font-size: 1.3rem;
+  font-weight: bold;
+  letter-spacing: 2px;
+  background: var(--bg);
+  border: 1px dashed var(--brand);
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+.ref-note {
+  background: #fef3c7;
+  border-radius: 8px;
+  padding: 8px;
+  color: #92400e;
+}
+.ref-note code { font-weight: bold; }
+.small { font-size: 0.8rem; }

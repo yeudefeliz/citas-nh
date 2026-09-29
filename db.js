@@ -148,6 +148,27 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now')),
     UNIQUE(event_id, user_id)
   );
+
+  -- Stories de 24 horas: foto o video corto que desaparece solo.
+  CREATE TABLE IF NOT EXISTS stories (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    media_url TEXT NOT NULL,
+    media_type TEXT NOT NULL DEFAULT 'photo',
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_stories_user_time ON stories(user_id, created_at);
+
+  -- Reacciones a mensajes del chat (un emoji por usuario y mensaje).
+  CREATE TABLE IF NOT EXISTS message_reactions (
+    id INTEGER PRIMARY KEY,
+    message_id INTEGER REFERENCES messages(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    emoji TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(message_id, user_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_reactions_msg ON message_reactions(message_id);
 `);
 
 // --- Migración: columnas premium (Stripe) ---------------------------------
@@ -233,4 +254,37 @@ if (conteoEventos === 0) {
   );
 }
 
+// --- Migración: referidos (código único, quién invitó, bonus de super likes) --
+const nuevasColumnasRef = {
+  referral_code: 'TEXT',
+  referred_by: 'INTEGER',
+  bonus_superlikes: 'INTEGER NOT NULL DEFAULT 0',
+};
+for (const [nombre, tipo] of Object.entries(nuevasColumnasRef)) {
+  if (!columnasUsers.includes(nombre)) {
+    db.prepare(`ALTER TABLE users ADD COLUMN ${nombre} ${tipo}`).run();
+  }
+}
+
+// Genera un código de referido de 8 caracteres (sin colisiones).
+function generarCodigoRef() {
+  const alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sin 0/O/1/I confusos
+  let codigo;
+  do {
+    codigo = '';
+    for (let i = 0; i < 8; i++) {
+      codigo += alfabeto[Math.floor(Math.random() * alfabeto.length)];
+    }
+  } while (db.prepare('SELECT 1 FROM users WHERE referral_code = ?').get(codigo));
+  return codigo;
+}
+
+// Usuarios viejos sin código: se les asigna uno.
+const sinCodigo = db.prepare('SELECT id FROM users WHERE referral_code IS NULL').all();
+const asignarCodigo = db.prepare('UPDATE users SET referral_code = ? WHERE id = ?');
+for (const u of sinCodigo) {
+  asignarCodigo.run(generarCodigoRef(), u.id);
+}
+
 module.exports = db;
+module.exports.generarCodigoRef = generarCodigoRef;

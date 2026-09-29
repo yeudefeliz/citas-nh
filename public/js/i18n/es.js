@@ -267,4 +267,43 @@ window.I18N = {
   err_DATE_IN_PAST: "La fecha no puede ser pasada.",
   err_EVENT_NOT_FOUND: "Evento no encontrado.",
   err_NO_FILE: "No se recibió el archivo.",
+  err_INVALID_EMOJI: "Ese emoji no está permitido.",
+  err_MESSAGE_NOT_FOUND: "Mensaje no encontrado.",
+
+  // ---- Stories ----
+  stories_title: "Stories",
+  story_add: "Tu story",
+  story_uploading: "Subiendo story…",
+  story_uploaded: "¡Story publicada! 📸",
+  story_delete: "Borrar story",
+  story_deleteConfirm: "¿Borrar esta story?",
+  story_deleted: "Story borrada.",
+  story_empty: "Nadie ha publicado stories hoy. ¡Sé la primera persona! 📸",
+  story_tooBig: "El archivo es muy grande (máx. 15 MB).",
+
+  // ---- Rompehielos ----
+  icebreaker_btn: "Rompehielo",
+  icebreaker_hint: "¿No sabes qué decir? Prueba un rompehielo 🧊",
+  icebreaker_fail: "No se pudo cargar el rompehielo.",
+
+  // ---- Reacciones ----
+  react_title: "Reacciona",
+  react_hint: "Mantén presionado un mensaje para reaccionar",
+
+  // ---- Referidos ----
+  referral_title: "Invita y gana 🎁",
+  referral_desc: "Comparte tu código: cada amigo que se registre te da 5 super likes extra (máx. 20).",
+  referral_code: "Tu código",
+  referral_share: "Compartir por WhatsApp",
+  referral_copied: "¡Enlace copiado! 📋",
+  referral_joined: "{n} amigos se unieron",
+  referral_bonus: "Tienes {n} super likes extra ⭐",
+  referral_shareText: "¡Únete a Citas NH, la app de citas de New Hampshire! Regístrate con mi código:",
+  register_invited: "🎁 Llegaste con el código de un amigo",
+
+  // ---- Top Picks ----
+  toppicks_title: "Top Picks 💎",
+  toppicks_sub: "Elegidos para ti hoy",
+  toppicks_empty: "No hay Top Picks hoy. ¡Sigue descubriendo! 💎",
+  toppicks_premium: "💎 Premium",
 };

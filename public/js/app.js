@@ -31,6 +31,7 @@ const LS_TOKEN = "citasnh-token"; // clave del JWT en localStorage
 const LS_LANG = "citasnh-lang";   // idioma guardado: "es" o "en"
 const MAX_PHOTOS = 3;             // máximo de fotos de perfil
 const CHAT_POLL_MS = 5000;        // el chat pregunta por mensajes nuevos cada 5 s
+const REACT_EMOJIS = ["❤️", "😂", "🔥", "😮", "😢", "👍"]; // reacciones permitidas
 
 /* ---------- 2. Idioma (i18n) ---------- */
 // Lee el idioma guardado; español por defecto.
@@ -230,12 +231,14 @@ function route() {
   bottomnav.hidden = !logged; // la barra inferior solo con sesión
 
   // REGLA: sin token, siempre al login.
-  if (!logged && hash !== "#/login" && hash !== "#/registro") {
+  // (La ruta puede traer query, ej. #/registro?ref=CODIGO: se compara sin el query.)
+  const rutaBase = hash.split("?")[0];
+  if (!logged && rutaBase !== "#/login" && rutaBase !== "#/registro") {
     location.hash = "#/login";
     return;
   }
   // Con token no tiene sentido ver login/registro.
-  if (logged && (hash === "#/login" || hash === "#/registro")) {
+  if (logged && (rutaBase === "#/login" || rutaBase === "#/registro")) {
     location.hash = "#/descubrir";
     return;
   }
@@ -317,12 +320,17 @@ function renderLogin() {
 
 /* ----- #/registro ----- */
 function renderRegister() {
+  // ¿Vino con código de referido? (#/registro?ref=CODIGO)
+  const refMatch = (location.hash.split("?")[1] || "").match(/(?:^|&)ref=([^&]+)/);
+  const refCode = refMatch ? decodeURIComponent(refMatch[1]).trim().toUpperCase() : "";
+
   app.innerHTML = `
     <section class="auth">
       <div class="auth-card">
         <div class="auth-heart" aria-hidden="true">❤</div>
         <h2>${t("register_title")}</h2>
         <p class="muted center">${t("register_adultsOnly")}</p>
+        ${refCode ? `<p class="ref-note center">${t("register_invited")}: <code>${esc(refCode)}</code></p>` : ""}
         <p class="form-error" id="register-error" hidden></p>
         <form id="register-form">
           <label>${t("register_email")}
@@ -352,7 +360,7 @@ function renderRegister() {
     const btn = e.target.querySelector("button");
     btn.disabled = true;
     try {
-      // POST /api/auth/register {email,password,displayName,dob,zip} → 201 {token,user}
+      // POST /api/auth/register {email,password,displayName,dob,zip,referralCode?} → 201 {token,user}
       const data = await api("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -362,6 +370,7 @@ function renderRegister() {
           displayName: String(fd.get("displayName")).trim(),
           dob: fd.get("dob"),
           zip: String(fd.get("zip")).trim(),
+          referralCode: refCode || undefined,
         }),
       });
       localStorage.setItem(LS_TOKEN, data.token); // guarda el JWT
@@ -444,10 +453,16 @@ async function renderDiscover() {
       </div>
     </details>`;
 
+  // Barra de stories (se llena con loadStoriesBar) y Top Picks del día.
+  const storiesBarHtml = `<div class="stories-bar" id="stories-bar"><p class="muted">${t("common_loading")}</p></div>`;
+  const toppicksHtml = `<div class="toppicks" id="toppicks"></div>`;
+
   // Sin más tarjetas: mensaje amable (con filtros visibles para ajustarlos).
   if (!card) {
-    app.innerHTML = `<section class="discover"><h2>${t("discover_title")}</h2>${upsell}${filtrosHtml}<div class="empty">${t("discover_empty")}</div></section>`;
+    app.innerHTML = `<section class="discover"><h2>${t("discover_title")}</h2>${upsell}${storiesBarHtml}${filtrosHtml}${toppicksHtml}<div class="empty">${t("discover_empty")}</div></section>`;
     wireFilters();
+    loadStoriesBar();
+    loadTopPicks();
     return;
   }
 
@@ -464,7 +479,9 @@ async function renderDiscover() {
     <section class="discover">
       ${upsell}
       <h2>${t("discover_title")}</h2>
+      ${storiesBarHtml}
       ${filtrosHtml}
+      ${toppicksHtml}
       <article class="card">
         ${photo
           ? `<img class="card-photo" id="card-photo" src="${esc(photo)}" alt="">`
@@ -487,6 +504,8 @@ async function renderDiscover() {
     </section>`;
 
   wireFilters();
+  loadStoriesBar(); // llena la barra de stories de 24 h
+  loadTopPicks();   // llena los 3 Top Picks del día
   // Tocar la foto abre el perfil completo (y registra la visita).
   const cardPhoto = document.getElementById("card-photo");
   if (cardPhoto) {
@@ -537,9 +556,254 @@ async function renderDiscover() {
   }
 }
 
-// Modal celebratorio cuando hay match.
-function showMatchModal(name, matchId, wasSuper) {
+/* ----- Stories 24 h ----- */
+// Llena la barra de stories: botón + para la mía, círculos de los demás.
+async function loadStoriesBar() {
+  const bar = document.getElementById("stories-bar");
+  if (!bar) return;
+  let data;
+  try {
+    // GET /api/stories/feed → {feed:[{userId,displayName,age,photo,isMatch,stories[]}], mine:[]}
+    data = await api("/api/stories/feed");
+  } catch (e) {
+    bar.innerHTML = "";
+    return;
+  }
+  const token = encodeURIComponent(getToken() || "");
+  const items = [];
+
+  // Botón + : subir mi story (foto o video).
+  const myThumb = (data.mine && data.mine[0] && data.mine[0].mediaType === "photo")
+    ? data.mine[0].mediaUrl + "?token=" + token
+    : "";
+  items.push(`
+    <div class="story-wrap">
+      <button class="story-item" id="story-add" aria-label="${esc(t("story_add"))}">
+        <span class="story-circle story-add-circle">${myThumb ? `<img src="${esc(myThumb)}" alt="">` : "+"}</span>
+        <span class="story-name">${t("story_add")}</span>
+      </button>
+      <input type="file" id="story-input" accept="image/*,video/*" hidden>
+    </div>`);
+
+  for (const g of data.feed || []) {
+    const first = g.stories[0];
+    const thumb = first.mediaType === "photo"
+      ? first.mediaUrl + "?token=" + token
+      : (g.photo || "");
+    items.push(`
+      <button class="story-item" data-story-user="${esc(g.userId)}">
+        <span class="story-circle${g.isMatch ? " is-match" : ""}">${thumb ? `<img src="${esc(thumb)}" alt="">` : "📸"}</span>
+        <span class="story-name">${esc(g.displayName)}</span>
+      </button>`);
+  }
+
+  bar.innerHTML = `<div class="stories-row">${items.join("")}</div>`;
+
+  // Abrir el visor de cada grupo.
+  const grupos = {};
+  for (const g of data.feed || []) grupos[g.userId] = g;
+  bar.querySelectorAll("[data-story-user]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const g = grupos[btn.getAttribute("data-story-user")];
+      if (g) openStoryViewer(g.displayName, g.stories, null);
+    });
+  });
+
+  // Subir mi story → POST /api/stories (multipart, campo "media").
+  const addBtn = document.getElementById("story-add");
+  const fileInput = document.getElementById("story-input");
+  if (addBtn && fileInput) {
+    // Si tengo stories, tocar mi círculo las muestra (con opción de borrar).
+    if (data.mine && data.mine.length && myThumb) {
+      addBtn.addEventListener("click", () => openStoryViewer(t("story_add"), data.mine, true));
+    } else {
+      addBtn.addEventListener("click", () => fileInput.click());
+    }
+    fileInput.addEventListener("change", async () => {
+      if (!fileInput.files.length) return;
+      const fd = new FormData();
+      fd.append("media", fileInput.files[0]);
+      toast(t("story_uploading"));
+      try {
+        await api("/api/stories", { method: "POST", body: fd });
+        toast(t("story_uploaded"));
+        loadStoriesBar();
+      } catch (err) {
+        toast(apiErrorMessage(err));
+      }
+      fileInput.value = "";
+    });
+  }
+}
+
+// Visor fullscreen de stories: avanza solo (5 s foto, al terminar video).
+function openStoryViewer(name, stories, mine) {
+  if (!stories || !stories.length) return;
+  const old = document.getElementById("story-viewer");
+  if (old) old.remove();
+  const token = encodeURIComponent(getToken() || "");
+  let idx = 0;
+  let timer = null;
+
   const overlay = document.createElement("div");
+  overlay.className = "story-viewer";
+  overlay.id = "story-viewer";
+
+  const close = () => {
+    if (timer) clearTimeout(timer);
+    overlay.remove();
+  };
+
+  const next = () => {
+    if (idx < stories.length - 1) {
+      idx += 1;
+      render();
+    } else {
+      close();
+    }
+  };
+
+  const render = () => {
+    if (timer) clearTimeout(timer);
+    const s = stories[idx];
+    const url = s.mediaUrl + "?token=" + token;
+    overlay.innerHTML = `
+      <div class="sv-top">
+        <div class="sv-progress">${stories.map((_, i) => `<span class="sv-bar${i <= idx ? " on" : ""}"></span>`).join("")}</div>
+        <div class="sv-user">
+          <strong>${esc(name || "")}</strong>
+          <span>
+            ${mine ? `<button class="btn btn-ghost btn-sm" id="sv-del">🗑 ${t("story_delete")}</button>` : ""}
+            <button class="btn btn-ghost btn-sm" id="sv-close" aria-label="${esc(t("common_close"))}">✕</button>
+          </span>
+        </div>
+      </div>
+      ${s.mediaType === "video"
+        ? `<video class="sv-media" id="sv-media" src="${esc(url)}" autoplay playsinline></video>`
+        : `<img class="sv-media" src="${esc(url)}" alt="">`}
+      <button class="sv-nav sv-prev" id="sv-prev" aria-label="‹">‹</button>
+      <button class="sv-nav sv-next" id="sv-next" aria-label="›">›</button>`;
+    overlay.querySelector("#sv-close").addEventListener("click", close);
+    overlay.querySelector("#sv-prev").addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (idx > 0) { idx -= 1; render(); }
+    });
+    overlay.querySelector("#sv-next").addEventListener("click", (e) => {
+      e.stopPropagation();
+      next();
+    });
+    const del = overlay.querySelector("#sv-del");
+    if (del) {
+      del.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm(t("story_deleteConfirm"))) return;
+        try {
+          // DELETE /api/stories/:id → {ok}
+          await api("/api/stories/" + encodeURIComponent(s.id), { method: "DELETE" });
+          toast(t("story_deleted"));
+          close();
+          loadStoriesBar();
+        } catch (err) {
+          toast(apiErrorMessage(err));
+        }
+      });
+    }
+    const media = overlay.querySelector("#sv-media");
+    if (s.mediaType === "video" && media) {
+      media.addEventListener("ended", next); // al terminar el video, siguiente
+      timer = setTimeout(next, 30000); // seguridad: máx. 30 s por video
+    } else {
+      timer = setTimeout(next, 5000); // las fotos avanzan a los 5 s
+    }
+  };
+
+  document.body.appendChild(overlay);
+  render();
+}
+
+/* ----- Top Picks 💎 ----- */
+// 3 perfiles elegidos para ti hoy (borde dorado, mismas acciones like/pass/super).
+async function loadTopPicks() {
+  const box = document.getElementById("toppicks");
+  if (!box) return;
+  let data;
+  try {
+    // GET /api/top-picks → {picks:[{userId,displayName,age,town,photos,isVerified}], premium}
+    data = await api("/api/top-picks");
+  } catch (e) {
+    box.innerHTML = "";
+    return;
+  }
+  const picks = data.picks || [];
+  if (!picks.length) {
+    box.innerHTML = "";
+    return;
+  }
+
+  box.innerHTML = `
+    <div class="toppicks-head">
+      <h3>${t("toppicks_title")}</h3>
+      <p class="muted">${t("toppicks_sub")}</p>
+    </div>
+    <div class="toppicks-row">
+      ${picks.map((p) => {
+        const photo = p.photos && p.photos[0];
+        return `
+        <article class="pick-card" data-pick="${esc(p.userId)}">
+          ${photo
+            ? `<img class="pick-photo" src="${esc(photo)}" alt="">`
+            : `<div class="pick-photo placeholder" aria-hidden="true">❤</div>`}
+          <div class="pick-body">
+            <strong>${esc(p.displayName)}, ${esc(p.age)} ${vBadge(p.isVerified)}</strong>
+            ${data.premium ? `<span class="pick-premium">${t("toppicks_premium")}</span>` : ""}
+            <p class="muted">${esc(p.town || "")}</p>
+          </div>
+          <div class="pick-actions">
+            <button class="btn btn-pass btn-sm" data-vote="pass" data-u="${esc(p.userId)}" aria-label="${esc(t("discover_pass"))}">✕</button>
+            <button class="btn btn-super btn-sm" data-vote="super" data-u="${esc(p.userId)}" aria-label="${esc(t("superlike"))}">⭐</button>
+            <button class="btn btn-like btn-sm" data-vote="like" data-u="${esc(p.userId)}" aria-label="${esc(t("discover_like"))}">❤</button>
+          </div>
+        </article>`;
+      }).join("")}
+    </div>`;
+
+  box.querySelectorAll("[data-vote]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const u = Number(btn.getAttribute("data-u"));
+      const kind = btn.getAttribute("data-vote");
+      const card = btn.closest(".pick-card");
+      const name = card ? card.querySelector("strong").textContent : "";
+      btn.disabled = true;
+      try {
+        // POST /api/votes {targetUserId, vote, super?}
+        const res = await api("/api/votes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            targetUserId: u,
+            vote: kind === "pass" ? "pass" : "like",
+            super: kind === "super",
+          }),
+        });
+        if (res.match) {
+          showMatchModal(name, res.matchId, !!res.super);
+        } else {
+          loadTopPicks(); // recarga los picks (el votado ya no sale)
+        }
+      } catch (err) {
+        if (err && (err.code === "LIKE_LIMIT_REACHED" || err.code === "SUPERLIKE_LIMIT_REACHED")) {
+          showPremiumModal();
+        } else {
+          toast(apiErrorMessage(err));
+        }
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+// Modal celebratorio cuando hay match.
+function showMatchModal(name, matchId, wasSuper) {  const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
   overlay.innerHTML = `
     <div class="modal" role="dialog" aria-modal="true">
@@ -854,6 +1118,7 @@ async function renderChat(matchId) {
       </div>
       <div class="messages" id="messages"><p class="muted center">${t("common_loading")}</p></div>
       <form class="chat-input" id="chat-form">
+        <button type="button" class="btn btn-ghost" id="chat-ice" title="${esc(t("icebreaker_btn"))}" aria-label="${esc(t("icebreaker_btn"))}">🧊</button>
         <button type="button" class="btn btn-ghost" id="chat-voice" title="${esc(t("chat_voice"))}" aria-label="${esc(t("chat_voice"))}">🎤</button>
         <input name="text" autocomplete="off" maxlength="1000" placeholder="${esc(t("chat_placeholder"))}">
         <button type="submit" class="btn btn-primary">${t("common_send")}</button>
@@ -878,6 +1143,7 @@ async function renderChat(matchId) {
   // pueda inyectar HTML malicioso en el chat.
   // Tipos: 'text' → burbuja normal; 'voice' → reproductor de audio;
   // 'gift' → tarjeta animada del regalo.
+  // Cada mensaje lleva su fila de reacciones (❤️ 😂 🔥 😮 😢 👍).
   const appendMsgs = (msgs) => {
     msgs.forEach((m) => {
       const div = document.createElement("div");
@@ -899,9 +1165,81 @@ async function renderChat(matchId) {
       } else {
         div.textContent = m.text;
       }
+      // Fila de reacciones debajo de la burbuja.
+      const rrow = document.createElement("div");
+      rrow.className = "reactions";
+      rrow.setAttribute("data-msgid", m.id);
+      paintReactions(rrow, m.reactions || []);
+      div.appendChild(rrow);
       box.appendChild(div);
+      // Doble tap (PC) o mantener presionado (móvil) → picker de reacciones.
+      wireReactPicker(div, m.id);
     });
     box.scrollTop = box.scrollHeight; // baja hasta el último mensaje
+  };
+
+  // Pinta las reacciones de un mensaje: [{emoji, count, mine}].
+  const paintReactions = (row, reactions) => {
+    row.innerHTML = (reactions || [])
+      .map((r) => `<span class="react-chip${r.mine ? " mine" : ""}">${esc(r.emoji)}${r.count > 1 ? `<b>${r.count}</b>` : ""}</span>`)
+      .join("");
+    row.style.display = reactions && reactions.length ? "" : "none";
+  };
+
+  // Picker de reacciones: 6 emojis, tocar uno reacciona (o quita si ya estaba).
+  const openReactPicker = (msgId) => {
+    const old = document.getElementById("react-picker");
+    if (old) old.remove();
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.id = "react-picker";
+    overlay.innerHTML = `
+      <div class="modal react-modal" role="dialog" aria-modal="true">
+        <h3>${t("react_title")}</h3>
+        <div class="react-emojis">
+          ${REACT_EMOJIS.map((e) => `<button class="react-emoji" data-e="${esc(e)}">${esc(e)}</button>`).join("")}
+        </div>
+        <button class="btn btn-ghost" id="react-close">${t("common_close")}</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector("#react-close").addEventListener("click", close);
+    overlay.addEventListener("click", (ev) => {
+      if (ev.target === overlay) close();
+    });
+    overlay.querySelectorAll(".react-emoji").forEach((b) => {
+      b.addEventListener("click", async () => {
+        const emoji = b.getAttribute("data-e");
+        close();
+        try {
+          // POST /api/chat/:matchId/messages/:msgId/react {emoji} → {reactions}
+          const res = await api(
+            "/api/chat/" + encodeURIComponent(matchId) + "/messages/" + encodeURIComponent(msgId) + "/react",
+            { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ emoji }) }
+          );
+          const row = box.querySelector(`.reactions[data-msgid="${msgId}"]`);
+          if (row) paintReactions(row, res.reactions || []);
+        } catch (err) {
+          toast(apiErrorMessage(err));
+        }
+      });
+    });
+  };
+
+  const wireReactPicker = (div, msgId) => {
+    let pressTimer = null;
+    div.addEventListener("dblclick", (e) => {
+      e.preventDefault();
+      openReactPicker(msgId);
+    });
+    div.addEventListener("touchstart", () => {
+      pressTimer = setTimeout(() => openReactPicker(msgId), 500);
+    }, { passive: true });
+    const cancelPress = () => {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    };
+    div.addEventListener("touchend", cancelPress);
+    div.addEventListener("touchmove", cancelPress);
   };
 
   const load = async (after) => {
@@ -915,7 +1253,12 @@ async function renderChat(matchId) {
     const initial = await load(0);
     box.innerHTML = "";
     if (!initial.length) {
-      box.innerHTML = `<p class="muted center">${t("chat_empty")}</p>`;
+      // Chat nuevo: sugerencia de rompehielo 🧊.
+      box.innerHTML = `<p class="muted center">${t("chat_empty")}</p>
+        <p class="center"><button class="btn btn-ghost btn-sm" id="empty-ice">🧊 ${t("icebreaker_btn")}</button></p>
+        <p class="muted center small">${t("icebreaker_hint")}</p>`;
+      const emptyIce = document.getElementById("empty-ice");
+      if (emptyIce) emptyIce.addEventListener("click", pedirRompehielo);
     } else {
       appendMsgs(initial);
       lastId = initial[initial.length - 1].id;
@@ -956,6 +1299,21 @@ async function renderChat(matchId) {
       input.value = text; // devuelve el texto para no perderlo
     }
   });
+
+  // Rompehielo 🧊 → trae una pregunta aleatoria y la pone en el input lista para enviar.
+  const pedirRompehielo = async () => {
+    const input = document.querySelector("#chat-form input[name=text]");
+    if (!input) return;
+    try {
+      // GET /api/icebreakers/random?lang=es|en → {question}
+      const data = await api("/api/icebreakers/random?lang=" + encodeURIComponent(lang));
+      input.value = data.question || "";
+      input.focus();
+    } catch (err) {
+      toast(t("icebreaker_fail"));
+    }
+  };
+  document.getElementById("chat-ice").addEventListener("click", pedirRompehielo);
 
   // Regreso de Stripe tras enviar un regalo: ?regalo=exito o ?regalo=cancelado.
   const regaloEstado = (location.hash.split("?")[1] || "").includes("regalo=exito")
@@ -1462,6 +1820,10 @@ async function renderProfile() {
       ${boostHtml}
       ${verifyHtml}
       ${invisibleHtml}
+      <div class="card referral-card" id="referral-card">
+        <h3>${t("referral_title")}</h3>
+        <p class="muted">${t("common_loading")}</p>
+      </div>
 
       <p class="field-label">${t("profile_photos")}</p>
       <div class="photo-grid" id="photo-grid"></div>
@@ -1503,6 +1865,38 @@ async function renderProfile() {
     </section>`;
 
   paintPhotos(photos);
+
+  // Referidos 🎁 → GET /api/referral {code, link, count, bonusSuperlikes}
+  try {
+    const ref = await api("/api/referral");
+    const card = document.getElementById("referral-card");
+    if (card && ref.code) {
+      const waUrl = "https://wa.me/?text=" + encodeURIComponent(
+        t("referral_shareText") + " " + ref.code + "\n" + ref.link
+      );
+      card.innerHTML = `
+        <h3>${t("referral_title")}</h3>
+        <p class="muted">${t("referral_desc")}</p>
+        <div class="referral-code-row">
+          <span class="muted">${t("referral_code")}:</span>
+          <code class="referral-code">${esc(ref.code)}</code>
+          <button class="btn btn-sm btn-ghost" id="ref-copy" aria-label="📋">📋</button>
+        </div>
+        <p class="muted">${esc(t("referral_joined").replace("{n}", ref.count))} · ${esc(t("referral_bonus").replace("{n}", ref.bonusSuperlikes))}</p>
+        <a class="btn btn-primary" href="${esc(waUrl)}" target="_blank" rel="noopener">📲 ${t("referral_share")}</a>`;
+      document.getElementById("ref-copy").addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(ref.link);
+          toast(t("referral_copied"));
+        } catch (e) {
+          toast(ref.link); // si no hay portapapeles, muestra el enlace
+        }
+      });
+    }
+  } catch (e) {
+    const card = document.getElementById("referral-card");
+    if (card) card.style.display = "none";
+  }
 
   // Boost → POST /api/billing/boost → {url} (Stripe Checkout, $1.99 pago único)
   const btnBoost = document.getElementById("btn-boost");
