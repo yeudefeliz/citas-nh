@@ -163,6 +163,82 @@ function toast(msg) {
   toast._t = setTimeout(() => el.classList.remove("show"), 2600);
 }
 
+// ---------- Efectos visuales (confeti, corazones) — sin dependencias ----------
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+// Capa fija para partículas (se crea sola la primera vez).
+function fxLayer() {
+  let el = document.getElementById("fx-layer");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "fx-layer";
+    el.setAttribute("aria-hidden", "true");
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+// Burst de corazones flotantes (al dar like). x,y en píxeles; si no se dan,
+// salen desde el centro-inferior de la pantalla.
+function heartBurst(x, y, n) {
+  const layer = fxLayer();
+  const count = n || 9;
+  const cx = x == null ? window.innerWidth / 2 : x;
+  const cy = y == null ? window.innerHeight - 190 : y;
+  for (let i = 0; i < count; i++) {
+    const s = document.createElement("span");
+    s.className = "heart-particle";
+    s.textContent = ["❤️", "💖", "💕", "❤️"][i % 4];
+    const dx = (Math.random() * 160 - 80).toFixed(0) + "px";
+    s.style.left = (cx + Math.random() * 40 - 20) + "px";
+    s.style.top = cy + "px";
+    s.style.setProperty("--dx", dx);
+    s.style.animationDelay = (Math.random() * 0.15).toFixed(2) + "s";
+    layer.appendChild(s);
+    setTimeout(() => s.remove(), 1400);
+  }
+}
+
+// Confeti en canvas inline (al hacer match). Sin CDN, sin dependencias.
+function confettiBurst() {
+  const layer = fxLayer();
+  const canvas = document.createElement("canvas");
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  layer.appendChild(canvas);
+  const ctx = canvas.getContext("2d");
+  const colors = ["#ff2e63", "#ff6b6b", "#ffd166", "#f59e0b", "#ffffff", "#ff9ec7"];
+  const parts = [];
+  for (let i = 0; i < 130; i++) {
+    parts.push({
+      x: Math.random() * canvas.width,
+      y: -20 - Math.random() * canvas.height * 0.3,
+      w: 6 + Math.random() * 7,
+      h: 8 + Math.random() * 8,
+      c: colors[(Math.random() * colors.length) | 0],
+      vy: 2.4 + Math.random() * 3.4,
+      vx: -1.6 + Math.random() * 3.2,
+      rot: Math.random() * Math.PI,
+      vr: -0.12 + Math.random() * 0.24,
+    });
+  }
+  const t0 = Date.now();
+  (function tick() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const p of parts) {
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.c;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+    if (Date.now() - t0 < 2600) requestAnimationFrame(tick);
+    else canvas.remove();
+  })();
+}
+
 function errorHtml(err) {
   return `<section><div class="empty">😕<br>${esc(apiErrorMessage(err))}</div></section>`;
 }
@@ -400,7 +476,7 @@ function setDiscoverFilters(f) {
 }
 
 async function renderDiscover() {
-  app.innerHTML = `<section class="discover"><h2>${t("discover_title")}</h2><p class="muted">${t("common_loading")}</p></section>`;
+  app.innerHTML = `<section class="discover"><h2>${t("discover_title")}</h2><div class="skel skel-card" aria-hidden="true"></div><div class="skel-row" aria-hidden="true"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div></section>`;
 
   const filtros = getDiscoverFilters();
   const qs = new URLSearchParams();
@@ -513,6 +589,22 @@ async function renderDiscover() {
   }
 
   const vote = async (v, isSuper) => {
+    // Micro-animación inmediata: pop del botón + la tarjeta sale volando.
+    const btnIds = { pass: "btn-pass", like: "btn-like" };
+    const btn = document.getElementById(isSuper ? "btn-super" : btnIds[v]);
+    if (btn) {
+      btn.classList.remove("vote-pop");
+      void btn.offsetWidth; // reinicia la animación
+      btn.classList.add("vote-pop");
+    }
+    const cardEl = document.querySelector(".discover .card");
+    if (cardEl) {
+      cardEl.classList.add(v === "pass" ? "swipe-left" : isSuper ? "swipe-up" : "swipe-right");
+    }
+    if (v === "like" && btn) {
+      const r = btn.getBoundingClientRect();
+      heartBurst(r.left + r.width / 2, r.top); // burst de corazones al dar like
+    }
     try {
       // POST /api/votes {targetUserId, vote:"like"|"pass", super?} → {ok, match, matchId?, super?}
       const res = await api("/api/votes", {
@@ -520,12 +612,15 @@ async function renderDiscover() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ targetUserId: card.userId, vote: v, super: !!isSuper }),
       });
+      await sleep(cardEl ? 300 : 0); // deja que la animación de salida se aprecie
       if (res.match) {
         showMatchModal(card.displayName, res.matchId, !!res.super); // ¡match! aviso celebratorio
       } else {
         renderDiscover(); // siguiente tarjeta
       }
     } catch (err) {
+      // Si falló el voto, la tarjeta vuelve a su lugar.
+      if (cardEl) cardEl.classList.remove("swipe-left", "swipe-right", "swipe-up");
       // Límites diarios → invitar al premium en vez de un toast seco.
       if (err && (err.code === "LIKE_LIMIT_REACHED" || err.code === "SUPERLIKE_LIMIT_REACHED")) {
         showPremiumModal();
@@ -806,7 +901,7 @@ async function loadTopPicks() {
 function showMatchModal(name, matchId, wasSuper) {  const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
   overlay.innerHTML = `
-    <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal match-celebrate" role="dialog" aria-modal="true">
       <div class="modal-heart" aria-hidden="true">💘</div>
       ${wasSuper ? `<p class="super-badge">${t("superlike_badge")}</p>` : ""}
       <h2>${t("match_title")}</h2>
@@ -815,6 +910,17 @@ function showMatchModal(name, matchId, wasSuper) {  const overlay = document.cre
       <button class="btn btn-ghost" id="m-keep">${t("match_keep")}</button>
     </div>`;
   document.body.appendChild(overlay);
+  // Corazones flotantes dentro del modal + confeti en pantalla.
+  const modal = overlay.querySelector(".modal");
+  for (let i = 0; i < 8; i++) {
+    const h = document.createElement("span");
+    h.className = "float-heart";
+    h.textContent = ["💖", "💕", "❤️", "💘"][i % 4];
+    h.style.left = (8 + Math.random() * 84) + "%";
+    h.style.animationDelay = (Math.random() * 0.9).toFixed(2) + "s";
+    modal.appendChild(h);
+  }
+  confettiBurst();
   overlay.querySelector("#m-chat").addEventListener("click", () => {
     overlay.remove();
     location.hash = "#/chat/" + encodeURIComponent(matchId);
@@ -866,7 +972,7 @@ async function openProfileViewer(userId) {
 
 /* ----- #/matches ----- */
 async function renderMatches() {
-  app.innerHTML = `<section><h2>${t("matches_title")}</h2><p class="muted">${t("common_loading")}</p></section>`;
+  app.innerHTML = `<section><h2>${t("matches_title")}</h2><div class="skel-row" aria-hidden="true"><div class="skel"></div></div><div class="skel-row" aria-hidden="true"><div class="skel"></div></div><div class="skel-row" aria-hidden="true"><div class="skel"></div></div></section>`;
 
   let admirers = { locked: true, count: 0 };
   let visitors = { locked: true, count: 0 };
@@ -1116,7 +1222,7 @@ async function renderChat(matchId) {
         <button class="btn btn-ghost btn-sm" id="chat-report">🚩 ${t("chat_report")}</button>
         <button class="btn btn-ghost btn-sm danger" id="chat-block">⛔ ${t("chat_block")}</button>
       </div>
-      <div class="messages" id="messages"><p class="muted center">${t("common_loading")}</p></div>
+      <div class="messages" id="messages"><div class="skel" style="min-height:52px;max-width:70%" aria-hidden="true"></div><div class="skel" style="min-height:52px;max-width:60%;align-self:flex-end" aria-hidden="true"></div><div class="skel" style="min-height:52px;max-width:66%" aria-hidden="true"></div></div>
       <form class="chat-input" id="chat-form">
         <button type="button" class="btn btn-ghost" id="chat-ice" title="${esc(t("icebreaker_btn"))}" aria-label="${esc(t("icebreaker_btn"))}">🧊</button>
         <button type="button" class="btn btn-ghost" id="chat-voice" title="${esc(t("chat_voice"))}" aria-label="${esc(t("chat_voice"))}">🎤</button>
@@ -1743,7 +1849,7 @@ const GENDERS = ["man", "woman", "nonbinary", "unspecified"];
 const LOOKINGS = ["friendship", "dating", "casual", "unsure"];
 
 async function renderProfile() {
-  app.innerHTML = `<section><h2>${t("profile_title")}</h2><p class="muted">${t("common_loading")}</p></section>`;
+  app.innerHTML = `<section><h2>${t("profile_title")}</h2><div class="skel skel-card" style="height:280px" aria-hidden="true"></div></section>`;
 
   // Regreso de Stripe tras el Boost: ?boost=exito o ?boost=cancelado.
   const boostEstado = (location.hash.split("?")[1] || "").includes("boost=exito")
