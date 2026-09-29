@@ -51,7 +51,7 @@ router.get('/', auth, (req, res) => {
   // (la base es pequeña; así el cálculo de edad/distancia queda exacto).
   const filas = db
     .prepare(
-      `SELECT u.id, u.display_name, u.dob, u.zip, u.boost_until,
+      `SELECT u.id, u.display_name, u.dob, u.zip, u.boost_until, u.is_verified,
               p.bio, p.gender, p.looking_for, p.languages, p.interests, p.town
        FROM users u
        JOIN profiles p ON p.user_id = u.id
@@ -108,6 +108,7 @@ router.get('/', auth, (req, res) => {
       distanceMi:
         elegida.distancia === null ? null : Math.round(elegida.distancia),
       boosted: boostActivo(fila.boost_until, ahoraIso),
+      isVerified: !!fila.is_verified,
     },
   });
 });

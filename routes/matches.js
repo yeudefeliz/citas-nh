@@ -161,7 +161,7 @@ router.get('/matches', auth, (req, res) => {
     }
 
     const u = db
-      .prepare('SELECT id, display_name, dob FROM users WHERE id = ?')
+      .prepare('SELECT id, display_name, dob, is_verified FROM users WHERE id = ?')
       .get(otroId);
     if (!u) continue; // El otro usuario fue borrado; lo saltamos.
 
@@ -171,9 +171,14 @@ router.get('/matches', auth, (req, res) => {
 
     const ultimo = db
       .prepare(
-        'SELECT text, created_at FROM messages WHERE match_id = ? ORDER BY id DESC LIMIT 1'
+        'SELECT text, type, created_at FROM messages WHERE match_id = ? ORDER BY id DESC LIMIT 1'
       )
       .get(m.id);
+
+    // Texto visible del último mensaje (voz y regalos usan un marcador).
+    let ultimoTexto = ultimo ? ultimo.text : '';
+    if (ultimo && ultimo.type === 'voice') ultimoTexto = '🎤 Nota de voz';
+    if (ultimo && ultimo.type === 'gift') ultimoTexto = '🎁 ¡Te envió un regalo!';
 
     resultado.push({
       matchId: m.id,
@@ -183,10 +188,11 @@ router.get('/matches', auth, (req, res) => {
         age: calcularEdad(u.dob),
         town: (perfil && perfil.town) || '',
         photos: urlsFotos(u.id),
+        isVerified: !!u.is_verified,
       },
       createdAt: m.created_at,
       lastMessage: ultimo
-        ? { text: ultimo.text, createdAt: ultimo.created_at }
+        ? { text: ultimoTexto, createdAt: ultimo.created_at }
         : null,
     });
   }

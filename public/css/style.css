@@ -523,3 +523,145 @@ legend { font-weight: 600; font-size: .92rem; padding: 0 6px; }
 }
 #call-hangup { position: relative; z-index: 2; width: 100%; max-width: 320px; }
 .btn-danger { background: #dc2626; border-color: #dc2626; color: #fff; }
+
+/* ---------- Segunda tanda: invisible, verificación, voz, regalos, eventos ---------- */
+
+/* Badge de verificado ✅ */
+.verif-badge {
+  display: inline-block;
+  font-size: 0.85em;
+  margin-left: 2px;
+  vertical-align: baseline;
+}
+
+/* Tarjetas de perfil: verificación y modo invisible */
+.verify-card, .invisible-card {
+  margin-bottom: 12px;
+}
+.verify-card h3, .invisible-card h3 {
+  margin: 0 0 6px;
+}
+.verify-ok {
+  color: #2e7d32;
+  font-weight: 700;
+  margin: 4px 0;
+}
+.verify-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.verify-row input[type="file"] {
+  max-width: 220px;
+}
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 6px 0;
+}
+.switch-row input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  accent-color: #e91e63;
+}
+
+/* Notas de voz en el chat */
+.msg-voice audio {
+  max-width: 220px;
+  display: block;
+}
+
+/* Regalos en el chat: tarjeta animada */
+.msg-gift {
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+.gift-card {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #fff3e0, #fce4ec);
+  border: 2px solid #e91e63;
+  border-radius: 16px;
+  padding: 14px 22px;
+  animation: gift-pop 0.6s ease;
+}
+.gift-emoji {
+  font-size: 3rem;
+  animation: gift-bounce 1.2s ease infinite;
+}
+.gift-name {
+  font-weight: 700;
+  color: #ad1457;
+}
+@keyframes gift-pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@keyframes gift-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* Tienda de regalos (modal) */
+.gift-shop {
+  text-align: center;
+}
+.gift-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 14px 0;
+}
+.gift-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border: 2px solid #eee;
+  border-radius: 14px;
+  padding: 12px 6px;
+  background: #fff;
+  cursor: pointer;
+}
+.gift-item:active {
+  border-color: #e91e63;
+  transform: scale(0.96);
+}
+.gift-item .gift-emoji {
+  font-size: 2.4rem;
+  animation: none;
+}
+.gift-item .gift-name {
+  font-size: 0.85rem;
+  color: #333;
+}
+.gift-item .gift-price {
+  font-weight: 700;
+  color: #e91e63;
+}
+
+/* Eventos */
+.events .card.event-card {
+  margin-bottom: 12px;
+}
+.event-card h3 {
+  margin: 0 0 4px;
+}
+.event-form {
+  margin: 12px 0;
+  padding: 14px;
+}
+.event-form label {
+  display: block;
+  margin-bottom: 10px;
+}
+#ev-toggle {
+  margin-bottom: 4px;
+}

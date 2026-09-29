@@ -114,6 +114,40 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_call_signals_to
     ON call_signals(to_id, id);
+
+  -- Regalos virtuales comprados con Stripe (un pago por regalo).
+  CREATE TABLE IF NOT EXISTS gifts (
+    id INTEGER PRIMARY KEY,
+    sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    receiver_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    match_id INTEGER REFERENCES matches(id) ON DELETE CASCADE,
+    gift_id TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_gifts_match ON gifts(match_id, id);
+
+  -- Eventos en NH creados por la comunidad.
+  CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    place TEXT DEFAULT '',
+    town TEXT DEFAULT '',
+    event_date TEXT NOT NULL,
+    image_url TEXT DEFAULT '',
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_events_date ON events(event_date);
+
+  -- Confirmaciones de asistencia (toggle: existe = "voy").
+  CREATE TABLE IF NOT EXISTS event_rsvps (
+    id INTEGER PRIMARY KEY,
+    event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(event_id, user_id)
+  );
 `);
 
 // --- Migración: columnas premium (Stripe) ---------------------------------
@@ -143,6 +177,60 @@ const columnasVotes = db
   .map((c) => c.name);
 if (!columnasVotes.includes('is_super')) {
   db.prepare('ALTER TABLE votes ADD COLUMN is_super INTEGER NOT NULL DEFAULT 0').run();
+}
+
+// --- Migración: modo invisible + verificación ---------------------------
+const nuevasColumnasUsers = {
+  invisible_mode: 'INTEGER NOT NULL DEFAULT 0',
+  verification_status: "TEXT NOT NULL DEFAULT 'none'",
+  is_verified: 'INTEGER NOT NULL DEFAULT 0',
+};
+for (const [nombre, tipo] of Object.entries(nuevasColumnasUsers)) {
+  if (!columnasUsers.includes(nombre)) {
+    db.prepare(`ALTER TABLE users ADD COLUMN ${nombre} ${tipo}`).run();
+  }
+}
+
+// --- Migración: mensajes de voz y regalos (columnas type y audio_url) ----
+const columnasMessages = db
+  .prepare('PRAGMA table_info(messages)')
+  .all()
+  .map((c) => c.name);
+if (!columnasMessages.includes('type')) {
+  db.prepare("ALTER TABLE messages ADD COLUMN type TEXT NOT NULL DEFAULT 'text'").run();
+}
+if (!columnasMessages.includes('audio_url')) {
+  db.prepare('ALTER TABLE messages ADD COLUMN audio_url TEXT').run();
+}
+
+// --- Seed: 2 eventos de ejemplo si la tabla está vacía -------------------
+const conteoEventos = db.prepare('SELECT COUNT(*) AS n FROM events').get().n;
+if (conteoEventos === 0) {
+  const en2Semanas = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+  en2Semanas.setHours(20, 0, 0, 0);
+  const en3Semanas = new Date(Date.now() + 21 * 24 * 60 * 60 * 1000);
+  en3Semanas.setHours(19, 0, 0, 0);
+  const insertar = db.prepare(
+    `INSERT INTO events (title, description, place, town, event_date, created_by, created_at)
+     VALUES (?, ?, ?, ?, ?, NULL, ?)`
+  );
+  const ahora = new Date().toISOString();
+  insertar.run(
+    'Noche de solteros en Manchester',
+    'Ven a conocer gente nueva de NH en persona: música, tragos y buena vibra. ¡Los matches se hacen en vivo! 💃🕺',
+    'Downtown Manchester',
+    'Manchester',
+    en2Semanas.toISOString(),
+    ahora
+  );
+  insertar.run(
+    'Bachata bajo las estrellas en Nashua',
+    'Clase de bachata al aire libre y después social bailable. Trae tus mejores pasos 🇩🇴🌙',
+    'Riverside Park',
+    'Nashua',
+    en3Semanas.toISOString(),
+    ahora
+  );
 }
 
 module.exports = db;

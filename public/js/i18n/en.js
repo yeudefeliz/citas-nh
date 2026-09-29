@@ -206,4 +206,64 @@ window.I18N_EN = {
   call_rejected: "Declined the call",
   call_noCamera: "Couldn't access the camera.",
   call_failed: "Couldn't start the call.",
+
+  // ---- Invisible mode ----
+  invisible_title: "Invisible mode",
+  invisible_desc: "Nobody will see that you visited their profile. Your visits leave no trace.",
+  invisible_toggle: "Turn on invisible mode 🥷",
+  invisible_locked: "Invisible mode is Premium only.",
+  invisible_on: "Invisible mode on 🥷",
+  invisible_off: "Invisible mode off",
+
+  // ---- Verification ----
+  verify_title: "Profile verification",
+  verify_desc: "Take a new selfie (NOT one of your profile photos) and get your ✅ badge instantly.",
+  verify_cta: "Verify my profile",
+  verify_done: "Your profile is verified ✅",
+  verify_pickPhoto: "Pick your selfie first 📸",
+  verify_uploading: "Uploading selfie…",
+
+  // ---- Voice notes ----
+  chat_voice: "Voice note",
+  voice_recording: "Recording… tap ⏹ to send (max 1 min)",
+  voice_sending: "Sending voice note…",
+  voice_noMic: "Couldn't access the microphone.",
+
+  // ---- Gifts ----
+  gift_title: "Send a gift",
+  gift_desc: "The gift shows up in the chat once payment completes.",
+  gift_rosa: "Rose",
+  gift_trago: "Drink",
+  gift_diamante: "Diamond",
+  gift_sent: "Gift sent! 🎁",
+  gift_cancelled: "Payment cancelled, no charges.",
+  gift_empty: "The gift shop isn't available.",
+
+  // ---- Events ----
+  nav_events: "Events",
+  events_title: "NH events",
+  events_new: "Create event",
+  events_title_label: "Title",
+  events_desc_label: "Description",
+  events_place_label: "Venue",
+  events_town_label: "Town",
+  events_date_label: "Date & time",
+  events_create: "Publish event",
+  events_rsvp: "I'm in ✅",
+  events_rsvp_on: "Going!",
+  events_attendees: "going",
+  events_empty: "No events yet. Create the first one! 🎉",
+  events_created: "Event created! 🎉",
+
+  // ---- New errors ----
+  err_SELFIE_SAME_AS_PHOTO: "That photo is already on your profile. Take a new selfie 📸",
+  err_INVALID_GIFT: "Invalid gift.",
+  err_INVALID_TITLE: "The title isn't valid.",
+  err_INVALID_DESCRIPTION: "The description isn't valid.",
+  err_INVALID_PLACE: "The venue isn't valid.",
+  err_INVALID_TOWN: "The town isn't valid.",
+  err_INVALID_DATE: "The date isn't valid.",
+  err_DATE_IN_PAST: "The date can't be in the past.",
+  err_EVENT_NOT_FOUND: "Event not found.",
+  err_NO_FILE: "No file received.",
 };

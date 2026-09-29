@@ -207,4 +207,64 @@ window.I18N = {
   call_rejected: "Rechazó la llamada",
   call_noCamera: "No se pudo acceder a la cámara.",
   call_failed: "No se pudo iniciar la llamada.",
+
+  // ---- Modo invisible ----
+  invisible_title: "Modo invisible",
+  invisible_desc: "Nadie verá que visitaste su perfil. Tus visitas no dejan rastro.",
+  invisible_toggle: "Activar modo invisible 🥷",
+  invisible_locked: "El modo invisible es solo para Premium.",
+  invisible_on: "Modo invisible activado 🥷",
+  invisible_off: "Modo invisible desactivado",
+
+  // ---- Verificación ----
+  verify_title: "Verificación de perfil",
+  verify_desc: "Tómate una selfie nueva (que NO sea una de tus fotos de perfil) y recibe tu badge ✅ al instante.",
+  verify_cta: "Verificar mi perfil",
+  verify_done: "Tu perfil está verificado ✅",
+  verify_pickPhoto: "Elige primero tu selfie 📸",
+  verify_uploading: "Subiendo selfie…",
+
+  // ---- Notas de voz ----
+  chat_voice: "Nota de voz",
+  voice_recording: "Grabando… toca ⏹ para enviar (máx. 1 min)",
+  voice_sending: "Enviando nota de voz…",
+  voice_noMic: "No se pudo acceder al micrófono.",
+
+  // ---- Regalos ----
+  gift_title: "Enviar un regalo",
+  gift_desc: "El regalo aparece en el chat cuando se complete el pago.",
+  gift_rosa: "Rosa",
+  gift_trago: "Trago",
+  gift_diamante: "Diamante",
+  gift_sent: "¡Regalo enviado! 🎁",
+  gift_cancelled: "Pago cancelado, sin cargos.",
+  gift_empty: "La tienda de regalos no está disponible.",
+
+  // ---- Eventos ----
+  nav_events: "Eventos",
+  events_title: "Eventos en NH",
+  events_new: "Crear evento",
+  events_title_label: "Título",
+  events_desc_label: "Descripción",
+  events_place_label: "Lugar",
+  events_town_label: "Ciudad",
+  events_date_label: "Fecha y hora",
+  events_create: "Publicar evento",
+  events_rsvp: "Voy ✅",
+  events_rsvp_on: "¡Vas!",
+  events_attendees: "van",
+  events_empty: "Todavía no hay eventos. ¡Crea el primero! 🎉",
+  events_created: "¡Evento creado! 🎉",
+
+  // ---- Errores nuevos ----
+  err_SELFIE_SAME_AS_PHOTO: "Esa foto ya está en tu perfil. Tómate una selfie nueva 📸",
+  err_INVALID_GIFT: "Regalo no válido.",
+  err_INVALID_TITLE: "El título no es válido.",
+  err_INVALID_DESCRIPTION: "La descripción no es válida.",
+  err_INVALID_PLACE: "El lugar no es válido.",
+  err_INVALID_TOWN: "La ciudad no es válida.",
+  err_INVALID_DATE: "La fecha no es válida.",
+  err_DATE_IN_PAST: "La fecha no puede ser pasada.",
+  err_EVENT_NOT_FOUND: "Evento no encontrado.",
+  err_NO_FILE: "No se recibió el archivo.",
 };

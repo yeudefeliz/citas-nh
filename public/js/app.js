@@ -119,6 +119,35 @@ function esc(s) {
     .replace(/'/g, "&#39;");
 }
 
+// vBadge(): badge ✅ de perfil verificado.
+function vBadge(isV) {
+  return isV ? '<span class="verif-badge" title="✅">✅</span>' : "";
+}
+
+// Catálogo de regalos (GET /api/gifts/catalog), cacheado en memoria.
+let giftCatalog = null;
+async function loadGiftCatalog() {
+  if (giftCatalog) return giftCatalog;
+  try {
+    const data = await api("/api/gifts/catalog");
+    giftCatalog = (data && data.gifts) || [];
+  } catch (e) {
+    giftCatalog = [];
+  }
+  return giftCatalog;
+}
+function giftEmoji(id) {
+  const g = (giftCatalog || []).find((x) => x.id === id);
+  return g ? g.emoji : "🎁";
+}
+function giftName(id) {
+  return t("gift_" + id) || id;
+}
+function giftPrice(id) {
+  const g = (giftCatalog || []).find((x) => x.id === id);
+  return g ? "$" + (g.priceCents / 100).toFixed(2) : "";
+}
+
 // toast(): aviso flotante pequeño (mejor que alert() en móvil).
 function toast(msg) {
   let el = document.getElementById("toast");
@@ -231,6 +260,7 @@ function route() {
     case "#/perfil": return renderProfile();
     case "#/ajustes": return renderSettings();
     case "#/premium": return renderPremium();
+    case "#/eventos": return renderEvents();
     default: location.hash = "#/descubrir";
   }
 }
@@ -440,7 +470,7 @@ async function renderDiscover() {
           ? `<img class="card-photo" id="card-photo" src="${esc(photo)}" alt="">`
           : `<div class="card-photo placeholder" aria-hidden="true">❤</div>`}
         <div class="card-body">
-          <h3>${esc(card.displayName)}, ${esc(card.age)} ${boostTxt}</h3>
+          <h3>${esc(card.displayName)}, ${esc(card.age)} ${vBadge(card.isVerified)} ${boostTxt}</h3>
           <p class="muted">${esc(card.town || "")}</p>
           ${distTxt}
           ${card.bio ? `<p class="bio">${esc(card.bio)}</p>` : ""}
@@ -556,7 +586,7 @@ async function openProfileViewer(userId) {
   overlay.innerHTML = `
     <div class="modal profile-viewer" role="dialog" aria-modal="true">
       <div class="viewer-photos">${photosHtml || `<div class="card-photo placeholder" aria-hidden="true">❤</div>`}</div>
-      <h2>${esc(p.displayName)}, ${esc(p.age)}</h2>
+      <h2>${esc(p.displayName)}, ${esc(p.age)} ${vBadge(p.isVerified)}</h2>
       <p class="muted">${esc(p.town || "")}</p>
       ${p.bio ? `<p class="bio">${esc(p.bio)}</p>` : ""}
       ${langs ? `<p class="muted">🗣 ${langs}</p>` : ""}
@@ -612,7 +642,7 @@ async function renderMatches() {
               : `<span class="avatar-fallback" aria-hidden="true">❤</span>`}
             </span>
             <span class="match-info">
-              <strong>${esc(a.displayName)}, ${esc(a.age)}</strong>
+              <strong>${esc(a.displayName)}, ${esc(a.age)} ${vBadge(a.isVerified)}</strong>
               <small class="muted">${esc(a.town || "")}</small>
               ${a.isSuper ? `<small class="super-badge">${t("superlike_badge")}</small>` : ""}
             </span>
@@ -644,7 +674,7 @@ async function renderMatches() {
               ? `<img src="${esc(photo)}" alt="">`
               : `<span class="avatar-fallback" aria-hidden="true">❤</span>`}
             <span class="match-info">
-              <strong>${esc(v.displayName)}, ${esc(v.age)}</strong>
+              <strong>${esc(v.displayName)}, ${esc(v.age)} ${vBadge(v.isVerified)}</strong>
               <small class="muted">${esc(v.town || "")}</small>
             </span>
             <span class="chev" aria-hidden="true">›</span>
@@ -667,8 +697,8 @@ async function renderMatches() {
               ? `<img src="${esc(photo)}" alt="">`
               : `<span class="avatar-fallback" aria-hidden="true">❤</span>`}
             <span class="match-info">
-              <strong>${esc(u.displayName)}, ${esc(u.age)}</strong>
-              <small class="muted">${esc(m.lastMessage || u.town || "")}</small>
+              <strong>${esc(u.displayName)}, ${esc(u.age)} ${vBadge(u.isVerified)}</strong>
+              <small class="muted">${esc((m.lastMessage && m.lastMessage.text) || u.town || "")}</small>
             </span>
             <span class="chev" aria-hidden="true">›</span>
           </a></li>`;
@@ -816,13 +846,15 @@ async function renderChat(matchId) {
     <section class="chat">
       <div class="chat-header">
         <a class="btn btn-ghost btn-sm" href="#/matches" aria-label="${t("common_back")}">‹</a>
-        <strong class="chat-name">${esc(other.displayName || "")}</strong>
+        <strong class="chat-name">${esc(other.displayName || "")} ${vBadge(other.isVerified)}</strong>
         <button class="btn btn-ghost btn-sm" id="chat-call" title="${esc(t("call_video"))}" aria-label="${esc(t("call_video"))}">📹</button>
+        <button class="btn btn-ghost btn-sm" id="chat-gift" title="${esc(t("gift_title"))}" aria-label="${esc(t("gift_title"))}">🎁</button>
         <button class="btn btn-ghost btn-sm" id="chat-report">🚩 ${t("chat_report")}</button>
         <button class="btn btn-ghost btn-sm danger" id="chat-block">⛔ ${t("chat_block")}</button>
       </div>
       <div class="messages" id="messages"><p class="muted center">${t("common_loading")}</p></div>
       <form class="chat-input" id="chat-form">
+        <button type="button" class="btn btn-ghost" id="chat-voice" title="${esc(t("chat_voice"))}" aria-label="${esc(t("chat_voice"))}">🎤</button>
         <input name="text" autocomplete="off" maxlength="1000" placeholder="${esc(t("chat_placeholder"))}">
         <button type="submit" class="btn btn-primary">${t("common_send")}</button>
       </form>
@@ -842,13 +874,31 @@ async function renderChat(matchId) {
 
   let lastId = 0; // id del último mensaje visto (para ?after=)
 
-  // Dibuja mensajes. Usa textContent (no innerHTML) para que nadie
+  // Dibuja mensajes. El texto usa textContent (no innerHTML) para que nadie
   // pueda inyectar HTML malicioso en el chat.
+  // Tipos: 'text' → burbuja normal; 'voice' → reproductor de audio;
+  // 'gift' → tarjeta animada del regalo.
   const appendMsgs = (msgs) => {
     msgs.forEach((m) => {
       const div = document.createElement("div");
       div.className = "msg" + (myId && String(m.senderId) === String(myId) ? " mine" : "");
-      div.textContent = m.text;
+      const tipo = m.type || "text";
+      if (tipo === "voice" && m.audioUrl) {
+        div.classList.add("msg-voice");
+        const audio = document.createElement("audio");
+        audio.controls = true;
+        audio.preload = "none";
+        audio.src = m.audioUrl + "?token=" + encodeURIComponent(getToken() || "");
+        div.appendChild(audio);
+      } else if (tipo === "gift") {
+        div.classList.add("msg-gift");
+        div.innerHTML = `<div class="gift-card">
+          <span class="gift-emoji" aria-hidden="true">${esc(giftEmoji(m.text))}</span>
+          <span class="gift-name">${esc(giftName(m.text))}</span>
+        </div>`;
+      } else {
+        div.textContent = m.text;
+      }
       box.appendChild(div);
     });
     box.scrollTop = box.scrollHeight; // baja hasta el último mensaje
@@ -906,6 +956,143 @@ async function renderChat(matchId) {
       input.value = text; // devuelve el texto para no perderlo
     }
   });
+
+  // Regreso de Stripe tras enviar un regalo: ?regalo=exito o ?regalo=cancelado.
+  const regaloEstado = (location.hash.split("?")[1] || "").includes("regalo=exito")
+    ? "exito"
+    : (location.hash.split("?")[1] || "").includes("regalo=cancelado")
+      ? "cancelado"
+      : null;
+  if (regaloEstado === "exito") {
+    toast(t("gift_sent"));
+    history.replaceState(null, "", "#/chat/" + encodeURIComponent(matchId)); // limpia el query
+  } else if (regaloEstado === "cancelado") {
+    toast(t("gift_cancelled"));
+    history.replaceState(null, "", "#/chat/" + encodeURIComponent(matchId));
+  }
+
+  // Nota de voz 🎤 → MediaRecorder, máx. 60 s, se sube como audio.
+  let recorder = null;
+  let audioChunks = [];
+  let recTimer = null;
+  const voiceBtn = document.getElementById("chat-voice");
+
+  const detenerGrabacion = async (enviar) => {
+    if (recTimer) { clearTimeout(recTimer); recTimer = null; }
+    if (recorder && recorder.state !== "inactive") {
+      recorder._enviar = enviar; // lo lee el onstop
+      recorder.stop();
+    }
+  };
+
+  if (voiceBtn) {
+    voiceBtn.addEventListener("click", async () => {
+      // Si ya está grabando, toca ⏹ para enviar.
+      if (recorder && recorder.state === "recording") {
+        detenerGrabacion(true);
+        return;
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast(t("voice_noMic"));
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunks = [];
+        recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size) audioChunks.push(e.data);
+        };
+        recorder.onstop = async () => {
+          voiceBtn.textContent = "🎤";
+          stream.getTracks().forEach((tr) => tr.stop());
+          if (!recorder._enviar) { recorder = null; return; }
+          const blob = new Blob(audioChunks, { type: recorder.mimeType || "audio/webm" });
+          recorder = null;
+          if (!blob.size) return;
+          const fd = new FormData();
+          fd.append("audio", blob, "nota.webm");
+          toast(t("voice_sending"));
+          try {
+            // POST /api/chat/:matchId/voice (multipart, campo "audio")
+            const { message } = await api(
+              "/api/chat/" + encodeURIComponent(matchId) + "/voice",
+              { method: "POST", body: fd }
+            );
+            appendMsgs([message]);
+            lastId = message.id;
+          } catch (err) {
+            toast(apiErrorMessage(err));
+          }
+        };
+        recorder.start();
+        voiceBtn.textContent = "⏹";
+        toast(t("voice_recording"));
+        // Para solo a los 60 segundos.
+        recTimer = setTimeout(() => detenerGrabacion(true), 60000);
+      } catch (e) {
+        toast(t("voice_noMic"));
+      }
+    });
+  }
+
+  // Tienda de regalos 🎁 → modal con el catálogo; al elegir uno se abre
+  // el pago de Stripe (el regalo aparece en el chat cuando se complete).
+  document.getElementById("chat-gift").addEventListener("click", async () => {
+    const catalogo = await loadGiftCatalog();
+    if (!catalogo.length) {
+      toast(t("gift_empty"));
+      return;
+    }
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal gift-shop" role="dialog" aria-modal="true">
+        <h2>🎁 ${t("gift_title")}</h2>
+        <p class="muted">${t("gift_desc")}</p>
+        <div class="gift-grid">
+          ${catalogo.map((g) => `
+            <button class="gift-item" data-gift="${esc(g.id)}">
+              <span class="gift-emoji">${esc(g.emoji)}</span>
+              <span class="gift-name">${esc(t("gift_" + g.id))}</span>
+              <span class="gift-price">$${(g.priceCents / 100).toFixed(2)}</span>
+            </button>`).join("")}
+        </div>
+        <button class="btn btn-ghost" id="gift-close">${t("common_close")}</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector("#gift-close").addEventListener("click", () => overlay.remove());
+    overlay.addEventListener("click", (ev) => {
+      if (ev.target === overlay) overlay.remove();
+    });
+    overlay.querySelectorAll(".gift-item").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        try {
+          // POST /api/gifts/send {matchId, giftId} → {url} (Stripe)
+          const res = await api("/api/gifts/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ matchId: Number(matchId), giftId: btn.getAttribute("data-gift") }),
+          });
+          if (res.url) {
+            overlay.remove();
+            location.href = res.url; // salgo a Stripe; vuelvo con ?regalo=exito
+          }
+        } catch (err) {
+          toast(apiErrorMessage(err));
+          btn.disabled = false;
+        }
+      });
+    });
+  });
+
+  // Si salgo del chat grabando, suelto el micrófono.
+  const stopOnLeave = () => {
+    if (recorder && recorder.state === "recording") detenerGrabacion(false);
+    window.removeEventListener("hashchange", stopOnLeave);
+  };
+  window.addEventListener("hashchange", stopOnLeave);
 
   // Videollamada → botón 📹 inicia la llamada WebRTC con el otro usuario.
   document.getElementById("chat-call").addEventListener("click", () => {
@@ -1236,6 +1423,35 @@ async function renderProfile() {
       </div>`
     : "";
 
+  // Tarjeta de verificación: badge si ya está verificado, o subir selfie.
+  const verifyHtml = `
+    <div class="card verify-card">
+      <h3>✅ ${t("verify_title")}</h3>
+      ${profile.isVerified
+        ? `<p class="verify-ok">✅ ${t("verify_done")}</p>`
+        : `<p class="muted">${t("verify_desc")}</p>
+           <div class="verify-row">
+             <input type="file" id="selfie-input" accept="image/*">
+             <button class="btn btn-primary" id="btn-verify">${t("verify_cta")}</button>
+           </div>`}
+    </div>`;
+
+  // Modo invisible (solo Premium): no deja rastro en los perfiles que visitas.
+  const invisibleHtml = billing.isPremium
+    ? `<div class="card invisible-card">
+        <h3>🥷 ${t("invisible_title")}</h3>
+        <p class="muted">${t("invisible_desc")}</p>
+        <label class="switch-row">
+          <input type="checkbox" id="invisible-toggle"${profile.invisibleMode ? " checked" : ""}>
+          <span>${t("invisible_toggle")}</span>
+        </label>
+      </div>`
+    : `<a class="admirers-locked" href="#/premium">
+        <span class="admirers-count">🥷</span>
+        <span>${t("invisible_locked")}</span>
+        <span class="chev" aria-hidden="true">›</span>
+      </a>`;
+
   const langs = profile.languages || [];
   const interests = (profile.interests || []).join(", ");
   const photos = profile.photos || [];
@@ -1244,6 +1460,8 @@ async function renderProfile() {
     <section class="profile">
       <h2>${t("profile_title")}</h2>
       ${boostHtml}
+      ${verifyHtml}
+      ${invisibleHtml}
 
       <p class="field-label">${t("profile_photos")}</p>
       <div class="photo-grid" id="photo-grid"></div>
@@ -1346,6 +1564,48 @@ async function renderProfile() {
       }
     });
   }
+
+  // Modo invisible → POST /api/profile/invisible {enabled} (solo Premium)
+  const invToggle = document.getElementById("invisible-toggle");
+  if (invToggle) {
+    invToggle.addEventListener("change", async () => {
+      try {
+        await api("/api/profile/invisible", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled: invToggle.checked }),
+        });
+        toast(t(invToggle.checked ? "invisible_on" : "invisible_off"));
+      } catch (err) {
+        toast(apiErrorMessage(err));
+        invToggle.checked = !invToggle.checked; // revierte si falló
+      }
+    });
+  }
+
+  // Verificación → POST /api/verification/request (multipart, campo "selfie")
+  const verifyBtn = document.getElementById("btn-verify");
+  if (verifyBtn) {
+    verifyBtn.addEventListener("click", async () => {
+      const selfieInput = document.getElementById("selfie-input");
+      if (!selfieInput.files.length) {
+        toast(t("verify_pickPhoto"));
+        return;
+      }
+      const fd = new FormData();
+      fd.append("selfie", selfieInput.files[0]);
+      verifyBtn.disabled = true;
+      toast(t("verify_uploading"));
+      try {
+        await api("/api/verification/request", { method: "POST", body: fd });
+        toast(t("verify_done"));
+        renderProfile();
+      } catch (err) {
+        toast(apiErrorMessage(err)); // ej. SELFIE_SAME_AS_PHOTO
+        verifyBtn.disabled = false;
+      }
+    });
+  }
 }
 
 // Dibuja las fotos con su botón de borrar.
@@ -1371,6 +1631,120 @@ function paintPhotos(photos) {
         renderProfile();
       } catch (err) {
         toast(apiErrorMessage(err));
+      }
+    });
+  });
+}
+
+/* ----- #/eventos ----- */
+async function renderEvents() {
+  app.innerHTML = `<section class="events"><h2>🎉 ${t("events_title")}</h2><p class="muted">${t("common_loading")}</p></section>`;
+
+  let eventos = [];
+  try {
+    // GET /api/events → {events:[{id,title,description,place,town,eventDate,attendeeCount,rsvp}]}
+    eventos = ((await api("/api/events")).events) || [];
+  } catch (err) {
+    app.innerHTML = errorHtml(err);
+    return;
+  }
+
+  const fmtFecha = (iso) => {
+    try {
+      return new Date(iso).toLocaleString(lang === "es" ? "es-DO" : "en-US", {
+        weekday: "short", day: "numeric", month: "short",
+        hour: "2-digit", minute: "2-digit",
+      });
+    } catch (e) {
+      return iso;
+    }
+  };
+
+  const tarjetas = eventos.length
+    ? eventos.map((e) => `
+      <article class="card event-card">
+        <div class="card-body">
+          <h3>${esc(e.title)}</h3>
+          <p class="muted">📅 ${esc(fmtFecha(e.eventDate))}</p>
+          ${(e.place || e.town) ? `<p class="muted">📍 ${esc([e.place, e.town].filter(Boolean).join(" · "))}</p>` : ""}
+          ${e.description ? `<p class="bio">${esc(e.description)}</p>` : ""}
+          <p class="muted">👥 ${esc(String(e.attendeeCount))} ${t("events_attendees")}</p>
+          <button class="btn ${e.rsvp ? "btn-pass" : "btn-primary"} btn-sm" data-rsvp="${esc(e.id)}">
+            ${e.rsvp ? "✓ " + t("events_rsvp_on") : t("events_rsvp")}
+          </button>
+        </div>
+      </article>`).join("")
+    : `<div class="empty">${t("events_empty")}</div>`;
+
+  app.innerHTML = `
+    <section class="events">
+      <h2>🎉 ${t("events_title")}</h2>
+      <button class="btn btn-primary" id="ev-toggle">＋ ${t("events_new")}</button>
+      <form id="ev-form" class="card event-form" hidden>
+        <label>${t("events_title_label")}
+          <input name="title" maxlength="80" required>
+        </label>
+        <label>${t("events_desc_label")}
+          <textarea name="description" rows="3" maxlength="500"></textarea>
+        </label>
+        <label>${t("events_place_label")}
+          <input name="place" maxlength="120">
+        </label>
+        <label>${t("events_town_label")}
+          <input name="town" maxlength="60" placeholder="Manchester">
+        </label>
+        <label>${t("events_date_label")}
+          <input type="datetime-local" name="eventDate" required>
+        </label>
+        <button type="submit" class="btn btn-primary">${t("events_create")}</button>
+      </form>
+      <div id="ev-list">${tarjetas}</div>
+    </section>`;
+
+  // Mostrar/ocultar el formulario.
+  document.getElementById("ev-toggle").addEventListener("click", () => {
+    const f = document.getElementById("ev-form");
+    f.hidden = !f.hidden;
+  });
+
+  // Crear evento → POST /api/events
+  document.getElementById("ev-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const btn = e.target.querySelector("button[type=submit]");
+    btn.disabled = true;
+    try {
+      await api("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: String(fd.get("title") || ""),
+          description: String(fd.get("description") || ""),
+          place: String(fd.get("place") || ""),
+          town: String(fd.get("town") || ""),
+          eventDate: new Date(String(fd.get("eventDate") || "")).toISOString(),
+        }),
+      });
+      toast(t("events_created"));
+      renderEvents();
+    } catch (err) {
+      toast(apiErrorMessage(err));
+      btn.disabled = false;
+    }
+  });
+
+  // "Voy ✅" → POST /api/events/:id/rsvp (toggle)
+  app.querySelectorAll("[data-rsvp]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        await api("/api/events/" + encodeURIComponent(btn.getAttribute("data-rsvp")) + "/rsvp", {
+          method: "POST",
+        });
+        renderEvents();
+      } catch (err) {
+        toast(apiErrorMessage(err));
+        btn.disabled = false;
       }
     });
   });

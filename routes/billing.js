@@ -192,7 +192,7 @@ router.get('/admirers', auth, (req, res) => {
   const yo = req.userId;
   const filas = db
     .prepare(
-      `SELECT u.id, u.display_name, u.dob, p.town, MAX(v.is_super) AS is_super
+      `SELECT u.id, u.display_name, u.dob, u.is_verified, p.town, MAX(v.is_super) AS is_super
        FROM votes v
        JOIN users u ON u.id = v.voter_id
        LEFT JOIN profiles p ON p.user_id = u.id
@@ -229,6 +229,7 @@ router.get('/admirers', auth, (req, res) => {
       town: f.town || '',
       photos: fotosDe(f.id),
       isSuper: !!f.is_super,
+      isVerified: !!f.is_verified,
     })),
   });
 });
@@ -239,7 +240,7 @@ router.get('/visitors', auth, (req, res) => {
   const yo = req.userId;
   const filas = db
     .prepare(
-      `SELECT u.id, u.display_name, u.dob, p.town, MAX(pv.created_at) AS viewed_at
+      `SELECT u.id, u.display_name, u.dob, u.is_verified, p.town, MAX(pv.created_at) AS viewed_at
        FROM profile_views pv
        JOIN users u ON u.id = pv.viewer_id
        LEFT JOIN profiles p ON p.user_id = u.id
@@ -276,6 +277,7 @@ router.get('/visitors', auth, (req, res) => {
       town: f.town || '',
       photos: fotosDe(f.id),
       viewedAt: f.viewed_at,
+      isVerified: !!f.is_verified,
     })),
   });
 });
@@ -307,6 +309,21 @@ async function webhook(req, res) {
       // Boost ($1.99, pago único): activa 30 minutos de visibilidad.
       if (sess.mode === 'payment' && sess.metadata && sess.metadata.type === 'boost') {
         if (userId) activarBoost(userId, sess.customer || null);
+        return res.json({ received: true });
+      }
+
+      // Regalo virtual (pago único): lo registra y lo publica en el chat.
+      if (sess.mode === 'payment' && sess.metadata && sess.metadata.type === 'gift') {
+        try {
+          const { registrarRegalo } = require('./gifts');
+          registrarRegalo(
+            userId,
+            Number(sess.metadata.matchId),
+            sess.metadata.giftId
+          );
+        } catch (e) {
+          console.error('Webhook gift:', e.message);
+        }
         return res.json({ received: true });
       }
 

@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const db = require('../db');
 const { auth } = require('../middleware/auth');
+const { esPremium } = require('./billing');
 const { limpiarTexto, calcularEdad } = require('../utils/validacion');
 
 const router = express.Router();
@@ -53,6 +54,11 @@ function armarPerfil(userId) {
       'SELECT bio, gender, looking_for, languages, interests, town FROM profiles WHERE user_id = ?'
     )
     .get(userId);
+  const u = db
+    .prepare(
+      'SELECT invisible_mode, verification_status, is_verified FROM users WHERE id = ?'
+    )
+    .get(userId);
   const fotos = db
     .prepare('SELECT id, filename, position FROM photos WHERE user_id = ? ORDER BY position ASC, id ASC')
     .all(userId);
@@ -68,12 +74,34 @@ function armarPerfil(userId) {
       url: '/uploads/' + f.filename,
       position: f.position,
     })),
+    invisibleMode: !!(u && u.invisible_mode),
+    verificationStatus: (u && u.verification_status) || 'none',
+    isVerified: !!(u && u.is_verified),
   };
 }
 
 // GET /api/profile — Devuelve el perfil del usuario autenticado.
 router.get('/', auth, (req, res) => {
   return res.json({ profile: armarPerfil(req.userId) });
+});
+
+// POST /api/profile/invisible — Activa/desactiva el modo invisible (Premium).
+// Con el modo invisible, tus visitas a perfiles NO se registran.
+router.post('/invisible', auth, (req, res) => {
+  if (!esPremium(req.userId)) {
+    return res.status(403).json({ error: 'PREMIUM_REQUIRED' });
+  }
+  const enabled = req.body && req.body.enabled;
+  // Aceptamos true/false, 1/0 y "true"/"false".
+  const valor =
+    enabled === true || enabled === 1 || enabled === 'true' || enabled === '1'
+      ? 1
+      : 0;
+  db.prepare('UPDATE users SET invisible_mode = ? WHERE id = ?').run(
+    valor,
+    req.userId
+  );
+  return res.json({ invisibleMode: !!valor });
 });
 
 // GET /api/profile/:userId — Perfil público de OTRO usuario.
@@ -85,7 +113,7 @@ router.get('/:userId', auth, (req, res) => {
   }
 
   const u = db
-    .prepare('SELECT id, display_name, dob FROM users WHERE id = ?')
+    .prepare('SELECT id, display_name, dob, is_verified FROM users WHERE id = ?')
     .get(otroId);
   if (!u) {
     return res.status(404).json({ error: 'USER_NOT_FOUND' });
@@ -106,21 +134,32 @@ router.get('/:userId', auth, (req, res) => {
       return res.status(403).json({ error: 'BLOCKED' });
     }
 
-    // Registrar la visita: el índice único (viewer, viewed, fecha) hace que
-    // solo se guarde una por día por pareja (INSERT OR IGNORE).
-    db.prepare(
-      `INSERT OR IGNORE INTO profile_views (viewer_id, viewed_id, created_at)
-       VALUES (?, ?, ?)`
-    ).run(yo, otroId, new Date().toISOString());
+    // Registrar la visita (una por día por pareja), SALVO que yo esté en
+    // modo invisible: el índice único (viewer, viewed, fecha) hace que
+    // solo se guarde una por día (INSERT OR IGNORE).
+    const invisible = db
+      .prepare('SELECT invisible_mode FROM users WHERE id = ?')
+      .get(yo);
+    if (!invisible || !invisible.invisible_mode) {
+      db.prepare(
+        `INSERT OR IGNORE INTO profile_views (viewer_id, viewed_id, created_at)
+         VALUES (?, ?, ?)`
+      ).run(yo, otroId, new Date().toISOString());
+    }
   }
 
   const p = armarPerfil(otroId);
+  // El modo invisible y el estado de verificación son privados: no se
+  // le muestran a otros usuarios (isVerified sí es público: el badge ✅).
+  delete p.invisibleMode;
+  delete p.verificationStatus;
   return res.json({
     profile: Object.assign(
       {
         userId: u.id,
         displayName: u.display_name,
         age: calcularEdad(u.dob),
+        isVerified: !!u.is_verified,
       },
       p
     ),
