@@ -48,6 +48,7 @@ app.use('/api/profile', require('./routes/profile'));
 app.use('/api/discover', require('./routes/discover'));
 app.use('/api', require('./routes/matches')); // POST /api/votes, GET /api/matches
 app.use('/api/chat', require('./routes/chat'));
+app.use('/api/calls', require('./routes/calls')); // señalización WebRTC
 app.use('/api', require('./routes/social')); // /api/blocks, /api/reports
 app.use('/api', billing.router); // /api/billing/*, /api/admirers
 

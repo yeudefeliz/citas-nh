@@ -13,9 +13,13 @@
      POST /api/auth/register  POST /api/auth/login
      GET  /api/auth/me         DELETE /api/auth/account
      GET  /api/profile         PUT /api/profile
+     GET  /api/profile/:userId
      POST /api/profile/photos  DELETE /api/profile/photos/:id
-     GET  /api/discover        POST /api/votes
-     GET  /api/matches
+     GET  /api/discover?minAge=&maxAge=&maxDistance=   POST /api/votes {targetUserId, vote, super?}
+     POST /api/like {targetUserId, super?}
+     GET  /api/matches         GET /api/admirers  GET /api/visitors
+     GET  /api/billing/status  POST /api/billing/checkout  POST /api/billing/boost
+     POST /api/calls/signal    GET /api/calls/signals
      GET  /api/chat/:matchId/messages        POST /api/chat/:matchId/messages
      POST /api/blocks  GET /api/blocks  DELETE /api/blocks/:targetUserId
      POST /api/reports
@@ -184,6 +188,8 @@ function stopChatPolling() {
     clearInterval(chatTimer);
     chatTimer = null;
   }
+  stopCallPolling(); // deja de buscar llamadas entrantes
+  if (callState) endCall(true); // cuelga si hay una llamada activa
 }
 
 // route(): lee location.hash y dibuja la vista que toca.
@@ -340,22 +346,78 @@ function renderRegister() {
 }
 
 /* ----- #/descubrir ----- */
+// Filtros de Descubrir guardados en el teléfono (persisten entre visitas).
+function getDiscoverFilters() {
+  try {
+    return JSON.parse(localStorage.getItem("citasnh-filters") || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+function setDiscoverFilters(f) {
+  try {
+    localStorage.setItem("citasnh-filters", JSON.stringify(f));
+  } catch (e) {}
+}
+
 async function renderDiscover() {
   app.innerHTML = `<section class="discover"><h2>${t("discover_title")}</h2><p class="muted">${t("common_loading")}</p></section>`;
 
+  const filtros = getDiscoverFilters();
+  const qs = new URLSearchParams();
+  if (filtros.minAge) qs.set("minAge", filtros.minAge);
+  if (filtros.maxAge) qs.set("maxAge", filtros.maxAge);
+  if (filtros.maxDistance) qs.set("maxDistance", filtros.maxDistance);
+  const qstr = qs.toString() ? "?" + qs.toString() : "";
+
   let card = null;
   try {
-    // GET /api/discover → {card:{userId,displayName,age,town,bio,gender,lookingFor,languages,interests,photos[]} | null}
-    const data = await api("/api/discover");
+    // GET /api/discover (+ filtros) → {card:{...} | null}
+    const data = await api("/api/discover" + qstr);
     card = data.card;
   } catch (err) {
     app.innerHTML = errorHtml(err);
     return;
   }
 
-  // Sin más tarjetas: mensaje amable.
+  // Banner premium solo si Stripe está configurado y no soy premium.
+  const billing = await billingStatus();
+  const upsell = !billing.isPremium && billing.stripeConfigured
+    ? `<a class="premium-banner" href="#/premium">👑 ${t("premium_banner")}</a>`
+    : "";
+
+  const ageOpts = (sel) => {
+    let s = `<option value="">—</option>`;
+    for (let a = 18; a <= 60; a += 1) {
+      s += `<option value="${a}"${String(a) === String(sel) ? " selected" : ""}>${a}</option>`;
+    }
+    return s;
+  };
+  const distOpts = (sel) => {
+    const opciones = [["", t("filters_any")], ["10", t("filters_miles").replace("{n}", "10")],
+      ["25", t("filters_miles").replace("{n}", "25")], ["50", t("filters_miles").replace("{n}", "50")],
+      ["100", t("filters_miles").replace("{n}", "100")]];
+    return opciones.map(([v, l]) =>
+      `<option value="${v}"${String(v) === String(sel || "") ? " selected" : ""}>${l}</option>`).join("");
+  };
+  const filtrosHtml = `
+    <details class="filters">
+      <summary>🎛 ${t("filters_title")}</summary>
+      <div class="filter-grid">
+        <label>${t("filters_minAge")}<select id="f-minAge">${ageOpts(filtros.minAge)}</select></label>
+        <label>${t("filters_maxAge")}<select id="f-maxAge">${ageOpts(filtros.maxAge)}</select></label>
+        <label>${t("filters_maxDistance")}<select id="f-maxDist">${distOpts(filtros.maxDistance)}</select></label>
+      </div>
+      <div class="filter-actions">
+        <button id="f-apply" class="btn btn-like">${t("filters_apply")}</button>
+        <button id="f-clear" class="btn btn-pass">${t("filters_clear")}</button>
+      </div>
+    </details>`;
+
+  // Sin más tarjetas: mensaje amable (con filtros visibles para ajustarlos).
   if (!card) {
-    app.innerHTML = `<section class="discover"><h2>${t("discover_title")}</h2><div class="empty">${t("discover_empty")}</div></section>`;
+    app.innerHTML = `<section class="discover"><h2>${t("discover_title")}</h2>${upsell}${filtrosHtml}<div class="empty">${t("discover_empty")}</div></section>`;
+    wireFilters();
     return;
   }
 
@@ -364,23 +426,23 @@ async function renderDiscover() {
   const interests = (card.interests || [])
     .map((i) => `<span class="tag">${esc(i)}</span>`)
     .join("");
-
-  // Banner premium solo si Stripe está configurado y no soy premium.
-  const billing = await billingStatus();
-  const upsell = !billing.isPremium && billing.stripeConfigured
-    ? `<a class="premium-banner" href="#/premium">👑 ${t("premium_banner")}</a>`
-    : "";
+  const distTxt = card.distanceMi !== null && card.distanceMi !== undefined
+    ? `<p class="muted">📍 ${esc(t("discover_distance").replace("{n}", card.distanceMi))}</p>` : "";
+  const boostTxt = card.boosted ? `<span class="boost-tag">${t("discover_boosted")}</span>` : "";
 
   app.innerHTML = `
     <section class="discover">
       ${upsell}
+      <h2>${t("discover_title")}</h2>
+      ${filtrosHtml}
       <article class="card">
         ${photo
-          ? `<img class="card-photo" src="${esc(photo)}" alt="">`
+          ? `<img class="card-photo" id="card-photo" src="${esc(photo)}" alt="">`
           : `<div class="card-photo placeholder" aria-hidden="true">❤</div>`}
         <div class="card-body">
-          <h3>${esc(card.displayName)}, ${esc(card.age)}</h3>
+          <h3>${esc(card.displayName)}, ${esc(card.age)} ${boostTxt}</h3>
           <p class="muted">${esc(card.town || "")}</p>
+          ${distTxt}
           ${card.bio ? `<p class="bio">${esc(card.bio)}</p>` : ""}
           ${langs ? `<p class="muted">🗣 ${langs}</p>` : ""}
           ${interests ? `<p class="interests-label">${t("discover_interests")}</p><div class="tags">${interests}</div>` : ""}
@@ -388,43 +450,71 @@ async function renderDiscover() {
       </article>
       <div class="vote-row">
         <button id="btn-pass" class="btn btn-pass">✕<span>${t("discover_pass")}</span></button>
+        <button id="btn-super" class="btn btn-super" title="${esc(t("superlike"))}">⭐<span>${t("superlike")}</span></button>
         <button id="btn-like" class="btn btn-like">❤<span>${t("discover_like")}</span></button>
       </div>
+      <p class="muted hint">👆 ${t("view_profile_hint") || ""}</p>
     </section>`;
 
-  const vote = async (v) => {
+  wireFilters();
+  // Tocar la foto abre el perfil completo (y registra la visita).
+  const cardPhoto = document.getElementById("card-photo");
+  if (cardPhoto) {
+    cardPhoto.addEventListener("click", () => openProfileViewer(card.userId));
+  }
+
+  const vote = async (v, isSuper) => {
     try {
-      // POST /api/votes {targetUserId, vote:"like"|"pass"} → {ok, match, matchId?}
+      // POST /api/votes {targetUserId, vote:"like"|"pass", super?} → {ok, match, matchId?, super?}
       const res = await api("/api/votes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetUserId: card.userId, vote: v }),
+        body: JSON.stringify({ targetUserId: card.userId, vote: v, super: !!isSuper }),
       });
       if (res.match) {
-        showMatchModal(card.displayName, res.matchId); // ¡match! aviso celebratorio
+        showMatchModal(card.displayName, res.matchId, !!res.super); // ¡match! aviso celebratorio
       } else {
         renderDiscover(); // siguiente tarjeta
       }
     } catch (err) {
-      // Límite diario de likes → invitar al premium en vez de un toast seco.
-      if (err && err.code === "LIKE_LIMIT_REACHED") {
+      // Límites diarios → invitar al premium en vez de un toast seco.
+      if (err && (err.code === "LIKE_LIMIT_REACHED" || err.code === "SUPERLIKE_LIMIT_REACHED")) {
         showPremiumModal();
         return;
       }
       toast(apiErrorMessage(err));
     }
   };
-  document.getElementById("btn-pass").addEventListener("click", () => vote("pass"));
-  document.getElementById("btn-like").addEventListener("click", () => vote("like"));
+  document.getElementById("btn-pass").addEventListener("click", () => vote("pass", false));
+  document.getElementById("btn-super").addEventListener("click", () => vote("like", true));
+  document.getElementById("btn-like").addEventListener("click", () => vote("like", false));
+
+  function wireFilters() {
+    const apply = document.getElementById("f-apply");
+    if (!apply) return;
+    apply.addEventListener("click", () => {
+      setDiscoverFilters({
+        minAge: document.getElementById("f-minAge").value || "",
+        maxAge: document.getElementById("f-maxAge").value || "",
+        maxDistance: document.getElementById("f-maxDist").value || "",
+      });
+      renderDiscover();
+    });
+    document.getElementById("f-clear").addEventListener("click", () => {
+      setDiscoverFilters({});
+      renderDiscover();
+    });
+  }
 }
 
 // Modal celebratorio cuando hay match.
-function showMatchModal(name, matchId) {
+function showMatchModal(name, matchId, wasSuper) {
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
   overlay.innerHTML = `
     <div class="modal" role="dialog" aria-modal="true">
       <div class="modal-heart" aria-hidden="true">💘</div>
+      ${wasSuper ? `<p class="super-badge">${t("superlike_badge")}</p>` : ""}
       <h2>${t("match_title")}</h2>
       <p>${t("match_subtitle", { name: esc(name) })}</p>
       <button class="btn btn-primary" id="m-chat">${t("match_chat")}</button>
@@ -441,17 +531,59 @@ function showMatchModal(name, matchId) {
   });
 }
 
+// Overlay con el perfil público de otro usuario.
+// GET /api/profile/:userId (esta llamada registra la visita en el backend).
+async function openProfileViewer(userId) {
+  if (!Number.isInteger(userId)) return;
+  toast(t("common_loading"));
+  let p = null;
+  try {
+    const data = await api("/api/profile/" + encodeURIComponent(userId));
+    p = data.profile;
+  } catch (err) {
+    toast(apiErrorMessage(err));
+    return;
+  }
+  const langs = (p.languages || []).map(esc).join(" · ");
+  const interests = (p.interests || [])
+    .map((i) => `<span class="tag">${esc(i)}</span>`)
+    .join("");
+  const photosHtml = (p.photos || [])
+    .map((f) => `<img src="${esc(f.url)}" alt="">`)
+    .join("");
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal profile-viewer" role="dialog" aria-modal="true">
+      <div class="viewer-photos">${photosHtml || `<div class="card-photo placeholder" aria-hidden="true">❤</div>`}</div>
+      <h2>${esc(p.displayName)}, ${esc(p.age)}</h2>
+      <p class="muted">${esc(p.town || "")}</p>
+      ${p.bio ? `<p class="bio">${esc(p.bio)}</p>` : ""}
+      ${langs ? `<p class="muted">🗣 ${langs}</p>` : ""}
+      ${interests ? `<p class="interests-label">${t("discover_interests")}</p><div class="tags">${interests}</div>` : ""}
+      <button class="btn btn-primary" id="pv-close">${t("common_close")}</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector("#pv-close").addEventListener("click", () => overlay.remove());
+  overlay.addEventListener("click", (ev) => {
+    if (ev.target === overlay) overlay.remove();
+  });
+}
+
 /* ----- #/matches ----- */
 async function renderMatches() {
   app.innerHTML = `<section><h2>${t("matches_title")}</h2><p class="muted">${t("common_loading")}</p></section>`;
 
   let admirers = { locked: true, count: 0 };
+  let visitors = { locked: true, count: 0 };
   try {
     // GET /api/matches → {matches:[{matchId, user:{...}, createdAt, lastMessage}]}
     const data = await api("/api/matches");
     cache.matches = data.matches || [];
     // GET /api/admirers → {locked:true,count} o {locked:false,admirers:[...]}
     admirers = await api("/api/admirers");
+    // GET /api/visitors → {locked:true,count} o {locked:false,visitors:[...]}
+    visitors = await api("/api/visitors");
   } catch (err) {
     app.innerHTML = errorHtml(err);
     return;
@@ -474,18 +606,54 @@ async function renderMatches() {
         .map((a) => {
           const photo = a.photos && a.photos[0];
           return `<li><div class="match-item">
+            <span class="match-photo" data-view-profile="${esc(a.userId)}">
             ${photo
               ? `<img src="${esc(photo)}" alt="">`
               : `<span class="avatar-fallback" aria-hidden="true">❤</span>`}
+            </span>
             <span class="match-info">
               <strong>${esc(a.displayName)}, ${esc(a.age)}</strong>
               <small class="muted">${esc(a.town || "")}</small>
+              ${a.isSuper ? `<small class="super-badge">${t("superlike_badge")}</small>` : ""}
             </span>
             <button class="btn btn-sm btn-primary" data-like-back="${esc(a.userId)}">❤</button>
           </div></li>`;
         })
         .join("") +
       `</ul>`;
+  }
+
+  // "Quién vio tu perfil 👀": gratis ve el conteo bloqueado, premium ve la lista.
+  let visitorsHtml = "";
+  if (visitors.locked) {
+    if (visitors.count > 0) {
+      visitorsHtml = `<a class="admirers-locked" href="#/premium">
+        <span class="admirers-count">👀 ${esc(String(visitors.count))}</span>
+        <span>${t("visitors_locked")}</span>
+        <span class="chev" aria-hidden="true">›</span>
+      </a>`;
+    }
+  } else if ((visitors.visitors || []).length) {
+    visitorsHtml =
+      `<h3 class="section-sub">👀 ${t("visitors_title")}</h3><ul class="match-list">` +
+      visitors.visitors
+        .map((v) => {
+          const photo = v.photos && v.photos[0];
+          return `<li><div class="match-item" data-view-profile="${esc(v.userId)}">
+            ${photo
+              ? `<img src="${esc(photo)}" alt="">`
+              : `<span class="avatar-fallback" aria-hidden="true">❤</span>`}
+            <span class="match-info">
+              <strong>${esc(v.displayName)}, ${esc(v.age)}</strong>
+              <small class="muted">${esc(v.town || "")}</small>
+            </span>
+            <span class="chev" aria-hidden="true">›</span>
+          </div></li>`;
+        })
+        .join("") +
+      `</ul>`;
+  } else {
+    visitorsHtml = `<p class="muted">${t("visitors_empty")}</p>`;
   }
 
   const listHtml = cache.matches.length
@@ -509,11 +677,23 @@ async function renderMatches() {
       `</ul>`
     : `<div class="empty">${t("matches_empty")}</div>`;
 
-  app.innerHTML = `<section><h2>${t("matches_title")}</h2>${admirersHtml}${listHtml}</section>`;
+  app.innerHTML = `<section><h2>${t("matches_title")}</h2>${admirersHtml}${visitorsHtml}${listHtml}</section>`;
+
+  // Escuchar llamadas entrantes mientras estoy en Matches.
+  startIncomingCallPolling();
+
+  // Tocar una tarjeta de admirador/visitante abre su perfil (registra la visita).
+  app.querySelectorAll("[data-view-profile]").forEach((el) => {
+    el.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      openProfileViewer(Number(el.getAttribute("data-view-profile")));
+    });
+  });
 
   // Botones "devolver like" en la lista de admiradores.
   app.querySelectorAll("[data-like-back]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", async (ev) => {
+      ev.stopPropagation();
       btn.disabled = true;
       try {
         // POST /api/votes {targetUserId, vote:"like"} → posible match
@@ -637,6 +817,7 @@ async function renderChat(matchId) {
       <div class="chat-header">
         <a class="btn btn-ghost btn-sm" href="#/matches" aria-label="${t("common_back")}">‹</a>
         <strong class="chat-name">${esc(other.displayName || "")}</strong>
+        <button class="btn btn-ghost btn-sm" id="chat-call" title="${esc(t("call_video"))}" aria-label="${esc(t("call_video"))}">📹</button>
         <button class="btn btn-ghost btn-sm" id="chat-report">🚩 ${t("chat_report")}</button>
         <button class="btn btn-ghost btn-sm danger" id="chat-block">⛔ ${t("chat_block")}</button>
       </div>
@@ -726,6 +907,18 @@ async function renderChat(matchId) {
     }
   });
 
+  // Videollamada → botón 📹 inicia la llamada WebRTC con el otro usuario.
+  document.getElementById("chat-call").addEventListener("click", () => {
+    if (!otherId) {
+      toast(apiErrorMessage({ code: "NO_MATCH" }));
+      return;
+    }
+    startCall(otherId, other.displayName || "");
+  });
+
+  // Escuchar llamadas entrantes mientras estoy en el chat.
+  startIncomingCallPolling();
+
   // Reportar (con confirmación) → POST /api/reports {targetUserId, reason}
   document.getElementById("chat-report").addEventListener("click", async () => {
     if (!otherId) return;
@@ -762,6 +955,243 @@ async function renderChat(matchId) {
   });
 }
 
+/* ----- Videollamadas WebRTC (P2P) ----- */
+// La señalización viaja por REST (/api/calls/signal); el audio/video va
+// directo entre los dos teléfonos (STUN de Google para atravesar el NAT).
+
+const CALL_POLL_MS = 2500; // la llamada activa pregunta por señales cada 2.5 s
+const INCOMING_POLL_MS = 5000; // buscar llamadas entrantes cada 5 s
+let callState = null; // llamada activa: {pc, otherId, otherName, localStream, pollTimer, lastSignalId}
+let incomingCallTimer = null; // polling de llamadas entrantes
+const seenRings = new Set(); // rings ya mostrados (para no repetir el modal)
+
+const RTC_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
+function stopCallPolling() {
+  if (incomingCallTimer) {
+    clearInterval(incomingCallTimer);
+    incomingCallTimer = null;
+  }
+  const modal = document.getElementById("incoming-modal");
+  if (modal) modal.remove();
+}
+
+// Envía una señal WebRTC al otro usuario (el backend exige que haya match).
+async function sendCallSignal(toUserId, type, payload) {
+  return api("/api/calls/signal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ toUserId, type, payload: payload || "" }),
+  });
+}
+
+function showCallOverlay(name, outgoing) {
+  const old = document.getElementById("call-overlay");
+  if (old) old.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "call-overlay";
+  overlay.id = "call-overlay";
+  overlay.innerHTML = `
+    <video id="call-remote" autoplay playsinline></video>
+    <p class="call-status" id="call-status">${outgoing ? t("call_calling") : t("call_connecting")} ${esc(name || "")}</p>
+    <video id="call-local" autoplay playsinline muted></video>
+    <button class="btn btn-danger" id="call-hangup">${t("call_hangup")}</button>`;
+  document.body.appendChild(overlay);
+  document.getElementById("call-hangup").addEventListener("click", () => endCall(true));
+}
+
+function setCallStatus(msg) {
+  const el = document.getElementById("call-status");
+  if (el) el.textContent = msg;
+}
+
+// Prepara el PeerConnection común (cámara local + manejo de ICE/remoto).
+async function setupCallPeer(otherId, otherName) {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  const pc = new RTCPeerConnection(RTC_CONFIG);
+  stream.getTracks().forEach((tr) => pc.addTrack(tr, stream));
+  callState = {
+    pc,
+    otherId,
+    otherName,
+    localStream: stream,
+    pollTimer: null,
+    lastSignalId: 0,
+  };
+  pc.onicecandidate = (ev) => {
+    if (ev.candidate && callState) {
+      // POST /api/calls/signal {toUserId, type:"ice", payload}
+      sendCallSignal(otherId, "ice", JSON.stringify(ev.candidate)).catch(() => {});
+    }
+  };
+  pc.ontrack = (ev) => {
+    const remote = document.getElementById("call-remote");
+    if (remote && ev.streams[0]) {
+      remote.srcObject = ev.streams[0];
+      setCallStatus(otherName || "");
+    }
+  };
+  return { pc, stream };
+}
+
+// Llamar: creo la oferta SDP y la mando como señal "ring".
+async function startCall(otherId, otherName) {
+  if (callState || !otherId) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    toast(t("call_noCamera"));
+    return;
+  }
+  showCallOverlay(otherName, true);
+  try {
+    const { pc } = await setupCallPeer(otherId, otherName);
+    document.getElementById("call-local").srcObject = callState.localStream;
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await sendCallSignal(otherId, "ring", JSON.stringify(offer));
+  } catch (e) {
+    endCall(false);
+    toast(t("call_failed"));
+    return;
+  }
+  callState.pollTimer = setInterval(pollCallSignals, CALL_POLL_MS);
+  pollCallSignals();
+}
+
+// Aceptar una llamada entrante: respondo a la oferta con mi respuesta SDP.
+async function acceptCall(signal) {
+  if (callState) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    toast(t("call_noCamera"));
+    return;
+  }
+  showCallOverlay(signal.fromName, false);
+  try {
+    const { pc } = await setupCallPeer(signal.fromId, signal.fromName);
+    document.getElementById("call-local").srcObject = callState.localStream;
+    await pc.setRemoteDescription(JSON.parse(signal.payload));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    // POST /api/calls/signal {toUserId, type:"answer", payload}
+    await sendCallSignal(signal.fromId, "answer", JSON.stringify(answer));
+    callState.lastSignalId = signal.id;
+  } catch (e) {
+    endCall(false);
+    toast(t("call_failed"));
+    return;
+  }
+  callState.pollTimer = setInterval(pollCallSignals, CALL_POLL_MS);
+  pollCallSignals();
+}
+
+function rejectCall(signal) {
+  sendCallSignal(signal.fromId, "reject", "").catch(() => {});
+}
+
+// Escucha las señales del interlocutor durante la llamada.
+async function pollCallSignals() {
+  if (!callState) return;
+  const st = callState;
+  try {
+    // GET /api/calls/signals?after=<id> → solo las señales nuevas
+    const data = await api("/api/calls/signals?after=" + encodeURIComponent(st.lastSignalId));
+    for (const s of data.signals || []) {
+      if (s.fromId !== st.otherId) continue;
+      st.lastSignalId = Math.max(st.lastSignalId, s.id);
+      if (s.type === "answer" && s.payload) {
+        await st.pc.setRemoteDescription(JSON.parse(s.payload)).catch(() => {});
+      } else if (s.type === "ice" && s.payload) {
+        await st.pc.addIceCandidate(JSON.parse(s.payload)).catch(() => {});
+      } else if (s.type === "reject") {
+        endCall(false);
+        toast(t("call_rejected"));
+        break;
+      } else if (s.type === "hangup" || s.type === "cancel") {
+        endCall(false);
+        toast(t("call_ended"));
+        break;
+      }
+    }
+  } catch (e) {
+    /* si una vuelta falla, la próxima lo intenta */
+  }
+}
+
+// Termina la llamada: cierra el peer, apaga la cámara y quita el overlay.
+function endCall(notify) {
+  const st = callState;
+  callState = null;
+  if (st) {
+    if (st.pollTimer) clearInterval(st.pollTimer);
+    if (notify) sendCallSignal(st.otherId, "hangup", "").catch(() => {});
+    try {
+      st.pc.close();
+    } catch (e) {}
+    if (st.localStream) st.localStream.getTracks().forEach((tr) => tr.stop());
+  }
+  const overlay = document.getElementById("call-overlay");
+  if (overlay) overlay.remove();
+}
+
+// Polling de llamadas entrantes (se usa en Matches y en el Chat).
+function startIncomingCallPolling() {
+  stopCallPolling();
+  incomingCallTimer = setInterval(checkIncomingCalls, INCOMING_POLL_MS);
+  checkIncomingCalls();
+}
+
+async function checkIncomingCalls() {
+  if (callState) return;
+  let data;
+  try {
+    // GET /api/calls/signals → señales recientes dirigidas a mí
+    data = await api("/api/calls/signals");
+  } catch (e) {
+    return;
+  }
+  const signals = data.signals || [];
+
+  // Si el que llamaba canceló/colgó, cierra el modal entrante.
+  const modal = document.getElementById("incoming-modal");
+  if (modal) {
+    const fid = Number(modal.dataset.fromId);
+    const gone = signals.some(
+      (s) => s.fromId === fid && (s.type === "cancel" || s.type === "hangup" || s.type === "reject")
+    );
+    if (gone) modal.remove();
+    return;
+  }
+
+  const ring = signals.find((s) => s.type === "ring" && s.payload && !seenRings.has(s.id));
+  if (ring) {
+    seenRings.add(ring.id);
+    showIncomingModal(ring);
+  }
+}
+
+function showIncomingModal(signal) {
+  if (document.getElementById("incoming-modal") || callState) return;
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.id = "incoming-modal";
+  overlay.dataset.fromId = String(signal.fromId);
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-heart" aria-hidden="true">📹</div>
+      <h2>${esc(t("call_incoming").replace("{name}", signal.fromName || ""))}</h2>
+      <button class="btn btn-primary" id="inc-accept">${t("call_accept")}</button>
+      <button class="btn btn-ghost" id="inc-reject">${t("call_reject")}</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector("#inc-accept").addEventListener("click", () => {
+    overlay.remove();
+    acceptCall(signal);
+  });
+  overlay.querySelector("#inc-reject").addEventListener("click", () => {
+    overlay.remove();
+    rejectCall(signal);
+  });
+}
+
 /* ----- #/perfil ----- */
 const LANG_OPTIONS = ["es", "en", "pt", "fr", "other"]; // códigos de idioma
 const GENDERS = ["man", "woman", "nonbinary", "unspecified"];
@@ -769,6 +1199,13 @@ const LOOKINGS = ["friendship", "dating", "casual", "unsure"];
 
 async function renderProfile() {
   app.innerHTML = `<section><h2>${t("profile_title")}</h2><p class="muted">${t("common_loading")}</p></section>`;
+
+  // Regreso de Stripe tras el Boost: ?boost=exito o ?boost=cancelado.
+  const boostEstado = (location.hash.split("?")[1] || "").includes("boost=exito")
+    ? "exito"
+    : (location.hash.split("?")[1] || "").includes("boost=cancelado")
+      ? "cancelado"
+      : null;
 
   let profile = {};
   try {
@@ -779,6 +1216,26 @@ async function renderProfile() {
     return;
   }
 
+  // Forzar el estado de facturación si vengo de Stripe (el boost pudo activarse).
+  const billing = await billingStatus(boostEstado === "exito");
+
+  if (boostEstado === "exito") {
+    toast(t("boost_success"));
+    history.replaceState(null, "", "#/perfil"); // limpia el query
+  } else if (boostEstado === "cancelado") {
+    toast(t("boost_cancelled"));
+    history.replaceState(null, "", "#/perfil");
+  }
+
+  const boostHtml = billing.stripeConfigured
+    ? `<div class="boost-card">
+        <p class="muted">${t("boost_desc")}</p>
+        ${billing.boostActive && billing.boostUntil
+          ? `<p><strong>${esc(t("boost_active").replace("{time}", new Date(billing.boostUntil).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })))}</strong></p>`
+          : `<button class="btn btn-primary" id="btn-boost">${t("boost_button")}</button>`}
+      </div>`
+    : "";
+
   const langs = profile.languages || [];
   const interests = (profile.interests || []).join(", ");
   const photos = profile.photos || [];
@@ -786,6 +1243,7 @@ async function renderProfile() {
   app.innerHTML = `
     <section class="profile">
       <h2>${t("profile_title")}</h2>
+      ${boostHtml}
 
       <p class="field-label">${t("profile_photos")}</p>
       <div class="photo-grid" id="photo-grid"></div>
@@ -827,6 +1285,21 @@ async function renderProfile() {
     </section>`;
 
   paintPhotos(photos);
+
+  // Boost → POST /api/billing/boost → {url} (Stripe Checkout, $1.99 pago único)
+  const btnBoost = document.getElementById("btn-boost");
+  if (btnBoost) {
+    btnBoost.addEventListener("click", async () => {
+      btnBoost.disabled = true;
+      try {
+        const data = await api("/api/billing/boost", { method: "POST" });
+        location.href = data.url; // Stripe se encarga del pago
+      } catch (err) {
+        toast(apiErrorMessage(err));
+        btnBoost.disabled = false;
+      }
+    });
+  }
 
   // Guardar → PUT /api/profile {bio,gender,lookingFor,languages[],interests[],town}
   document.getElementById("profile-form").addEventListener("submit", async (e) => {

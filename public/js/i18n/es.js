@@ -15,6 +15,7 @@ window.I18N = {
   nav_profile: "Perfil",
   nav_settings: "Ajustes",
   common_cancel: "Cancelar",
+  common_close: "Cerrar",
   common_confirm: "Confirmar",
   common_ok: "Aceptar",
   common_loading: "Cargando…",
@@ -160,4 +161,50 @@ window.I18N = {
   err_PREMIUM_NOT_CONFIGURED: "El premium no está disponible todavía.",
   err_PAYMENT_ERROR: "Hubo un problema con el pago. Inténtalo de nuevo.",
   err_NO_SUBSCRIPTION: "No tienes suscripción activa.",
+
+  // ---- Visitantes ----
+  visitors_title: "Quién vio tu perfil",
+  visitors_locked: "vio tu perfil — hazte Premium para ver quiénes son",
+  visitors_empty: "Nadie ha visto tu perfil todavía 👀",
+
+  // ---- Filtros de Descubrir ----
+  filters_title: "Filtros",
+  filters_minAge: "Edad mínima",
+  filters_maxAge: "Edad máxima",
+  filters_maxDistance: "Distancia máxima",
+  filters_any: "Cualquiera",
+  filters_miles: "{n} millas",
+  filters_apply: "Aplicar",
+  filters_clear: "Limpiar",
+  discover_distance: "a ~{n} millas",
+  discover_boosted: "🚀 Boost",
+  view_profile_hint: "Toca la foto para ver el perfil completo",
+
+  // ---- Super like ----
+  superlike: "Super like",
+  superlike_badge: "⭐ Super like",
+  err_SUPERLIKE_LIMIT_REACHED: "Ya usaste tu super like de hoy ⭐",
+  err_INVALID_SIGNAL: "Señal de llamada inválida.",
+  err_SIGNAL_TOO_LARGE: "La señal es muy grande.",
+  err_NO_MATCH: "Solo puedes llamar a tus matches.",
+
+  // ---- Boost ----
+  boost_button: "Boost 🚀 $1.99",
+  boost_desc: "Tu perfil sale primero en Descubrir por 30 minutos.",
+  boost_active: "Boost activo hasta las {time} 🚀",
+  boost_success: "¡Boost activado! 🚀",
+  boost_cancelled: "Boost cancelado, sin cargos.",
+
+  // ---- Videollamada ----
+  call_video: "Videollamada",
+  call_calling: "Llamando…",
+  call_connecting: "Conectando…",
+  call_incoming: "📹 {name} te está llamando",
+  call_accept: "Aceptar",
+  call_reject: "Rechazar",
+  call_hangup: "Colgar",
+  call_ended: "Llamada terminada",
+  call_rejected: "Rechazó la llamada",
+  call_noCamera: "No se pudo acceder a la cámara.",
+  call_failed: "No se pudo iniciar la llamada.",
 };

@@ -1,9 +1,11 @@
 // routes/billing.js — Premium con Stripe.
 // Endpoints (montados bajo /api):
-//   GET  /api/billing/status    → {isPremium, premiumUntil, stripeConfigured} (auth)
+//   GET  /api/billing/status    → {isPremium, premiumUntil, boostUntil, boostActive, stripeConfigured} (auth)
 //   POST /api/billing/checkout  → {url} (auth) — crea la sesión de pago de Stripe
+//   POST /api/billing/boost     → {url} (auth) — Boost de 30 min por $1.99 (pago único)
 //   POST /api/billing/portal    → {url} (auth) — portal para gestionar/cancelar
 //   GET  /api/admirers          → quién me dio like (auth; completo solo premium)
+//   GET  /api/visitors          → quién vio mi perfil (auth; completo solo premium)
 // Webhook (sin auth, verificado por firma):
 //   POST /api/billing/webhook   → se monta en server.js con cuerpo RAW
 
@@ -50,15 +52,32 @@ function desactivarPremium(userId) {
   ).run(userId);
 }
 
-// GET /api/billing/status — ¿soy premium? ¿Stripe está configurado?
+// Activa el Boost: el perfil sale primero en Descubrir por 30 minutos.
+function activarBoost(userId, customerId) {
+  const hasta = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  db.prepare(
+    `UPDATE users SET boost_until = ?,
+     stripe_customer_id = COALESCE(?, stripe_customer_id)
+     WHERE id = ?`
+  ).run(hasta, customerId || null, userId);
+}
+
+// ¿El boost de este usuario sigue activo?
+function boostActivo(boostUntil) {
+  return !!(boostUntil && boostUntil > new Date().toISOString());
+}
+
+// GET /api/billing/status — ¿soy premium? ¿Stripe está configurado? ¿Boost activo?
 router.get('/billing/status', auth, (req, res) => {
   const u = db
-    .prepare('SELECT is_premium, premium_until FROM users WHERE id = ?')
+    .prepare('SELECT is_premium, premium_until, boost_until FROM users WHERE id = ?')
     .get(req.userId);
   if (!u) return res.status(404).json({ error: 'USER_NOT_FOUND' });
   return res.json({
     isPremium: !!u.is_premium,
     premiumUntil: u.premium_until || null,
+    boostUntil: u.boost_until || null,
+    boostActive: boostActivo(u.boost_until),
     stripeConfigured: !!(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_ID),
   });
 });
@@ -99,6 +118,52 @@ router.post('/billing/checkout', auth, async (req, res) => {
   }
 });
 
+// POST /api/billing/boost — Boost de perfil por $1.99 (pago ÚNICO, 30 min).
+// Crea la sesión de Stripe con price_data inline (sin price ID hardcodeado).
+router.post('/billing/boost', auth, async (req, res) => {
+  const s = stripe();
+  if (!s) {
+    return res.status(503).json({ error: 'PREMIUM_NOT_CONFIGURED' });
+  }
+  const user = db
+    .prepare('SELECT id, email, stripe_customer_id FROM users WHERE id = ?')
+    .get(req.userId);
+  if (!user) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+
+  try {
+    const base = baseUrl(req);
+    const params = {
+      mode: 'payment',
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            unit_amount: 199, // $1.99
+            product_data: {
+              name: 'Boost de perfil — Citas NH (30 min)',
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: { type: 'boost', userId: String(user.id) },
+      success_url: `${base}/#/perfil?boost=exito`,
+      cancel_url: `${base}/#/perfil?boost=cancelado`,
+      locale: 'es',
+    };
+    if (user.stripe_customer_id) {
+      params.customer = user.stripe_customer_id;
+    } else {
+      params.customer_email = user.email;
+    }
+    const session = await s.checkout.sessions.create(params);
+    return res.json({ url: session.url });
+  } catch (e) {
+    console.error('Stripe boost:', e.message);
+    return res.status(502).json({ error: 'PAYMENT_ERROR' });
+  }
+});
+
 // POST /api/billing/portal — portal de Stripe para gestionar o cancelar.
 router.post('/billing/portal', auth, async (req, res) => {
   const s = stripe();
@@ -127,7 +192,7 @@ router.get('/admirers', auth, (req, res) => {
   const yo = req.userId;
   const filas = db
     .prepare(
-      `SELECT u.id, u.display_name, u.dob, p.town
+      `SELECT u.id, u.display_name, u.dob, p.town, MAX(v.is_super) AS is_super
        FROM votes v
        JOIN users u ON u.id = v.voter_id
        LEFT JOIN profiles p ON p.user_id = u.id
@@ -138,7 +203,8 @@ router.get('/admirers', auth, (req, res) => {
            WHERE (blocker_id = ? AND blocked_id = u.id)
               OR (blocker_id = u.id AND blocked_id = ?)
          )
-       ORDER BY v.created_at DESC`
+       GROUP BY u.id
+       ORDER BY MAX(v.created_at) DESC`
     )
     .all(yo, yo, yo, yo);
 
@@ -162,6 +228,54 @@ router.get('/admirers', auth, (req, res) => {
       age: calcularEdad(f.dob),
       town: f.town || '',
       photos: fotosDe(f.id),
+      isSuper: !!f.is_super,
+    })),
+  });
+});
+
+// GET /api/visitors — quién vio mi perfil (una entrada por visitante, lo más
+// reciente primero). Gratis: solo el conteo (bloqueado). Premium: la lista.
+router.get('/visitors', auth, (req, res) => {
+  const yo = req.userId;
+  const filas = db
+    .prepare(
+      `SELECT u.id, u.display_name, u.dob, p.town, MAX(pv.created_at) AS viewed_at
+       FROM profile_views pv
+       JOIN users u ON u.id = pv.viewer_id
+       LEFT JOIN profiles p ON p.user_id = u.id
+       WHERE pv.viewed_id = ?
+         AND NOT EXISTS (
+           SELECT 1 FROM blocks
+           WHERE (blocker_id = ? AND blocked_id = u.id)
+              OR (blocker_id = u.id AND blocked_id = ?)
+         )
+       GROUP BY u.id
+       ORDER BY viewed_at DESC
+       LIMIT 50`
+    )
+    .all(yo, yo, yo);
+
+  if (!esPremium(yo)) {
+    return res.json({ locked: true, count: filas.length });
+  }
+
+  const fotosDe = (uid) =>
+    db
+      .prepare(
+        'SELECT filename FROM photos WHERE user_id = ? ORDER BY position ASC, id ASC'
+      )
+      .all(uid)
+      .map((f) => '/uploads/' + f.filename);
+
+  return res.json({
+    locked: false,
+    visitors: filas.map((f) => ({
+      userId: f.id,
+      displayName: f.display_name,
+      age: calcularEdad(f.dob),
+      town: f.town || '',
+      photos: fotosDe(f.id),
+      viewedAt: f.viewed_at,
     })),
   });
 });
@@ -189,6 +303,14 @@ async function webhook(req, res) {
     if (tipo === 'checkout.session.completed') {
       const sess = event.data.object;
       const userId = Number(sess.metadata && sess.metadata.userId);
+
+      // Boost ($1.99, pago único): activa 30 minutos de visibilidad.
+      if (sess.mode === 'payment' && sess.metadata && sess.metadata.type === 'boost') {
+        if (userId) activarBoost(userId, sess.customer || null);
+        return res.json({ received: true });
+      }
+
+      // Suscripción Premium ($4.99/mes).
       const subId = sess.subscription || null;
       let periodEnd = null;
       if (subId) {

@@ -92,6 +92,28 @@ db.exec(`
     reason TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );
+
+  -- Visitas de perfil: quién vio el perfil de quién (una por día por pareja).
+  CREATE TABLE IF NOT EXISTS profile_views (
+    id INTEGER PRIMARY KEY,
+    viewer_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    viewed_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_views_day
+    ON profile_views(viewer_id, viewed_id, date(created_at));
+
+  -- Señalización WebRTC para videollamadas (el chat usa polling).
+  CREATE TABLE IF NOT EXISTS call_signals (
+    id INTEGER PRIMARY KEY,
+    from_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    to_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    payload TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_call_signals_to
+    ON call_signals(to_id, id);
 `);
 
 // --- Migración: columnas premium (Stripe) ---------------------------------
@@ -106,11 +128,21 @@ const columnasPremium = {
   premium_until: 'TEXT',
   stripe_customer_id: 'TEXT',
   stripe_subscription_id: 'TEXT',
+  boost_until: 'TEXT',
 };
 for (const [nombre, tipo] of Object.entries(columnasPremium)) {
   if (!columnasUsers.includes(nombre)) {
     db.prepare(`ALTER TABLE users ADD COLUMN ${nombre} ${tipo}`).run();
   }
+}
+
+// --- Migración: super likes (columna is_super en votes) ------------------
+const columnasVotes = db
+  .prepare('PRAGMA table_info(votes)')
+  .all()
+  .map((c) => c.name);
+if (!columnasVotes.includes('is_super')) {
+  db.prepare('ALTER TABLE votes ADD COLUMN is_super INTEGER NOT NULL DEFAULT 0').run();
 }
 
 module.exports = db;

@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const multer = require('multer');
 const db = require('../db');
 const { auth } = require('../middleware/auth');
-const { limpiarTexto } = require('../utils/validacion');
+const { limpiarTexto, calcularEdad } = require('../utils/validacion');
 
 const router = express.Router();
 
@@ -74,6 +74,57 @@ function armarPerfil(userId) {
 // GET /api/profile — Devuelve el perfil del usuario autenticado.
 router.get('/', auth, (req, res) => {
   return res.json({ profile: armarPerfil(req.userId) });
+});
+
+// GET /api/profile/:userId — Perfil público de OTRO usuario.
+// Registra la visita (una por día por pareja) para "Quién vio tu perfil".
+router.get('/:userId', auth, (req, res) => {
+  const otroId = Number(req.params.userId);
+  if (!Number.isInteger(otroId)) {
+    return res.status(404).json({ error: 'USER_NOT_FOUND' });
+  }
+
+  const u = db
+    .prepare('SELECT id, display_name, dob FROM users WHERE id = ?')
+    .get(otroId);
+  if (!u) {
+    return res.status(404).json({ error: 'USER_NOT_FOUND' });
+  }
+
+  const yo = req.userId;
+
+  // Si hay bloqueo en cualquier dirección, no se muestra nada.
+  if (otroId !== yo) {
+    const bloqueado = db
+      .prepare(
+        `SELECT 1 FROM blocks
+         WHERE (blocker_id = ? AND blocked_id = ?)
+            OR (blocker_id = ? AND blocked_id = ?)`
+      )
+      .get(yo, otroId, otroId, yo);
+    if (bloqueado) {
+      return res.status(403).json({ error: 'BLOCKED' });
+    }
+
+    // Registrar la visita: el índice único (viewer, viewed, fecha) hace que
+    // solo se guarde una por día por pareja (INSERT OR IGNORE).
+    db.prepare(
+      `INSERT OR IGNORE INTO profile_views (viewer_id, viewed_id, created_at)
+       VALUES (?, ?, ?)`
+    ).run(yo, otroId, new Date().toISOString());
+  }
+
+  const p = armarPerfil(otroId);
+  return res.json({
+    profile: Object.assign(
+      {
+        userId: u.id,
+        displayName: u.display_name,
+        age: calcularEdad(u.dob),
+      },
+      p
+    ),
+  });
 });
 
 // PUT /api/profile — Actualiza los campos del perfil (solo los enviados).

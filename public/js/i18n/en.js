@@ -14,6 +14,7 @@ window.I18N_EN = {
   nav_profile: "Profile",
   nav_settings: "Settings",
   common_cancel: "Cancel",
+  common_close: "Close",
   common_confirm: "Confirm",
   common_ok: "OK",
   common_loading: "Loading…",
@@ -159,4 +160,50 @@ window.I18N_EN = {
   err_PREMIUM_NOT_CONFIGURED: "Premium isn't available yet.",
   err_PAYMENT_ERROR: "There was a payment problem. Try again.",
   err_NO_SUBSCRIPTION: "You don't have an active subscription.",
+
+  // ---- Visitors ----
+  visitors_title: "Who viewed your profile",
+  visitors_locked: "viewed your profile — go Premium to see who they are",
+  visitors_empty: "Nobody has viewed your profile yet 👀",
+
+  // ---- Discover filters ----
+  filters_title: "Filters",
+  filters_minAge: "Min age",
+  filters_maxAge: "Max age",
+  filters_maxDistance: "Max distance",
+  filters_any: "Any",
+  filters_miles: "{n} miles",
+  filters_apply: "Apply",
+  filters_clear: "Clear",
+  discover_distance: "~{n} miles away",
+  discover_boosted: "🚀 Boost",
+  view_profile_hint: "Tap the photo to see the full profile",
+
+  // ---- Super like ----
+  superlike: "Super like",
+  superlike_badge: "⭐ Super like",
+  err_SUPERLIKE_LIMIT_REACHED: "You've used today's super like ⭐",
+  err_INVALID_SIGNAL: "Invalid call signal.",
+  err_SIGNAL_TOO_LARGE: "The signal is too large.",
+  err_NO_MATCH: "You can only call your matches.",
+
+  // ---- Boost ----
+  boost_button: "Boost 🚀 $1.99",
+  boost_desc: "Your profile shows first in Discover for 30 minutes.",
+  boost_active: "Boost active until {time} 🚀",
+  boost_success: "Boost activated! 🚀",
+  boost_cancelled: "Boost cancelled, no charges.",
+
+  // ---- Video call ----
+  call_video: "Video call",
+  call_calling: "Calling…",
+  call_connecting: "Connecting…",
+  call_incoming: "📹 {name} is calling you",
+  call_accept: "Accept",
+  call_reject: "Decline",
+  call_hangup: "Hang up",
+  call_ended: "Call ended",
+  call_rejected: "Declined the call",
+  call_noCamera: "Couldn't access the camera.",
+  call_failed: "Couldn't start the call.",
 };

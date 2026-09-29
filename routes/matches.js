@@ -1,4 +1,4 @@
-// routes/matches.js — Votos (like/pass) y lista de matches.
+// routes/matches.js — Votos (like/pass), super likes y lista de matches.
 // Un match se crea cuando dos usuarios se dan "like" mutuamente.
 
 const express = require('express');
@@ -9,6 +9,8 @@ const { esPremium } = require('./billing');
 
 // Likes por día para cuentas gratis (los premium no tienen límite).
 const FREE_LIKES_POR_DIA = 10;
+// Super likes por día para cuentas gratis (los premium son ilimitados).
+const FREE_SUPERLIKES_POR_DIA = 1;
 
 const router = express.Router();
 
@@ -19,49 +21,64 @@ function urlsFotos(userId) {
   return fotos.map((f) => '/uploads/' + f.filename);
 }
 
-// POST /api/votes — Vota "like" o "pass" sobre otro usuario.
-router.post('/votes', auth, (req, res) => {
-  const targetUserId = Number(req.body && req.body.targetUserId);
-  const vote = req.body && req.body.vote;
-  const yo = req.userId;
-
+// Lógica compartida de votar. Lanza {status, code} si algo es inválido.
+function votar(yo, targetUserId, vote, isSuper) {
   if (targetUserId === yo) {
-    return res.status(400).json({ error: 'CANNOT_VOTE_SELF' });
+    throw { status: 400, code: 'CANNOT_VOTE_SELF' };
   }
   if (vote !== 'like' && vote !== 'pass') {
-    return res.status(400).json({ error: 'INVALID_VOTE' });
+    throw { status: 400, code: 'INVALID_VOTE' };
   }
   if (!Number.isInteger(targetUserId)) {
-    return res.status(404).json({ error: 'USER_NOT_FOUND' });
+    throw { status: 404, code: 'USER_NOT_FOUND' };
+  }
+  if (isSuper && vote !== 'like') {
+    throw { status: 400, code: 'INVALID_VOTE' };
   }
 
   const objetivo = db.prepare('SELECT id FROM users WHERE id = ?').get(targetUserId);
   if (!objetivo) {
-    return res.status(404).json({ error: 'USER_NOT_FOUND' });
+    throw { status: 404, code: 'USER_NOT_FOUND' };
   }
 
   const yaVoto = db
     .prepare('SELECT id FROM votes WHERE voter_id = ? AND target_id = ?')
     .get(yo, targetUserId);
   if (yaVoto) {
-    return res.status(400).json({ error: 'ALREADY_VOTED' });
+    throw { status: 400, code: 'ALREADY_VOTED' };
   }
 
+  const premium = esPremium(yo);
+  const hoyUTC = "date(created_at) = date('now')";
+
   // Límite diario de likes para cuentas gratis (los premium son ilimitados).
-  if (vote === 'like' && !esPremium(yo)) {
+  if (vote === 'like' && !premium) {
     const dadosHoy = db
       .prepare(
-        "SELECT COUNT(*) AS c FROM votes WHERE voter_id = ? AND vote = 'like' AND date(created_at) = date('now')"
+        `SELECT COUNT(*) AS c FROM votes WHERE voter_id = ? AND vote = 'like' AND ${hoyUTC}`
       )
       .get(yo).c;
     if (dadosHoy >= FREE_LIKES_POR_DIA) {
-      return res.status(403).json({ error: 'LIKE_LIMIT_REACHED' });
+      throw { status: 403, code: 'LIKE_LIMIT_REACHED' };
+    }
+  }
+
+  // Límite diario de SUPER likes para cuentas gratis (premium: ilimitados).
+  if (isSuper && !premium) {
+    const superHoy = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM votes
+         WHERE voter_id = ? AND vote = 'like' AND is_super = 1 AND ${hoyUTC}`
+      )
+      .get(yo).c;
+    if (superHoy >= FREE_SUPERLIKES_POR_DIA) {
+      throw { status: 403, code: 'SUPERLIKE_LIMIT_REACHED' };
     }
   }
 
   db.prepare(
-    'INSERT INTO votes (voter_id, target_id, vote, created_at) VALUES (?, ?, ?, ?)'
-  ).run(yo, targetUserId, vote, new Date().toISOString());
+    'INSERT INTO votes (voter_id, target_id, vote, is_super, created_at) VALUES (?, ?, ?, ?, ?)'
+  ).run(yo, targetUserId, vote, isSuper ? 1 : 0, new Date().toISOString());
 
   // ¿Hay match? Solo si mi voto es "like" Y el otro ya me dio "like" a mí.
   if (vote === 'like') {
@@ -85,11 +102,36 @@ router.post('/votes', auth, (req, res) => {
         match = { id: nuevo.lastInsertRowid };
       }
 
-      return res.json({ ok: true, match: true, matchId: match.id });
+      return { ok: true, match: true, matchId: match.id, super: !!isSuper };
     }
   }
 
-  return res.json({ ok: true, match: false });
+  return { ok: true, match: false, super: !!isSuper };
+}
+
+// POST /api/votes — Vota "like" o "pass" sobre otro usuario.
+// Acepta {targetUserId, vote, super?}: super=true solo con vote:"like".
+router.post('/votes', auth, (req, res) => {
+  try {
+    const targetUserId = Number(req.body && req.body.targetUserId);
+    const vote = req.body && req.body.vote;
+    const isSuper = !!(req.body && req.body.super);
+    return res.json(votar(req.userId, targetUserId, vote, isSuper));
+  } catch (e) {
+    return res.status(e.status || 400).json({ error: e.code || 'GENERIC' });
+  }
+});
+
+// POST /api/like — Atajo para dar "like" (siempre like, nunca pass).
+// Acepta {targetUserId, super?}.
+router.post('/like', auth, (req, res) => {
+  try {
+    const targetUserId = Number(req.body && req.body.targetUserId);
+    const isSuper = !!(req.body && req.body.super);
+    return res.json(votar(req.userId, targetUserId, 'like', isSuper));
+  } catch (e) {
+    return res.status(e.status || 400).json({ error: e.code || 'GENERIC' });
+  }
 });
 
 // GET /api/matches — Lista de matches del usuario, sin los bloqueados
