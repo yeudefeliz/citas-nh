@@ -48,6 +48,17 @@
     <a href="#/mapa" data-route="mapa"><span aria-hidden="true">🗺️</span><span data-i18n="nav_map">Mapa</span></a>
   </nav>
 
+  <!-- Banner discreto: instalar la app (PWA). Solo se muestra si el
+       navegador dispara el evento beforeinstallprompt. -->
+  <div id="pwa-install-banner" class="pwa-banner" hidden>
+    <div class="pwa-banner-text">
+      <strong data-i18n="pwa_install_title">Instala Citas NH 📲</strong>
+      <span data-i18n="pwa_install_desc">Acceso directo en tu pantalla, como una app normal.</span>
+    </div>
+    <button id="pwa-install-btn" class="pwa-banner-btn" data-i18n="pwa_install_btn">Instalar</button>
+    <button id="pwa-install-later" class="pwa-banner-close" data-i18n="pwa_install_later">Ahora no</button>
+  </div>
+
   <!-- Diccionarios de idioma (formato: window.I18N / window.I18N_EN) -->
   <script src="/js/i18n/es.js"></script>
   <script src="/js/i18n/en.js"></script>

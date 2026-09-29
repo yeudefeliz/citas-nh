@@ -36,7 +36,18 @@ app.use('/uploads', express.static(uploadsDir));
 
 // public/ → el frontend (lo construye otro agente; si la carpeta no existe,
 // express.static simplemente deja pasar la petición al siguiente manejador).
-app.use(express.static(path.join(__dirname, 'public')));
+// PWA: el manifest se sirve con su MIME oficial y el service worker sin
+// caché agresiva para que las actualizaciones lleguen de inmediato.
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('manifest.json') || filePath.endsWith('manifest.webmanifest')) {
+      res.setHeader('Content-Type', 'application/manifest+json');
+    }
+    if (filePath.endsWith('sw.js')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  }
+}));
 
 // --- Rutas de la API ---------------------------------------------------
 app.get('/api/health', (req, res) => {

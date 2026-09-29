@@ -1435,3 +1435,43 @@ legend { font-weight: 700; font-size: .92rem; padding: 0 8px; }
   border: 2px solid #fff;
 }
 .map-pin span > * { transform: rotate(45deg); }
+
+/* ---------- PWA: banner discreto "Instalar app" ---------- */
+.pwa-banner {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 84px; /* encima de la nav flotante */
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(255, 46, 99, .18);
+}
+.pwa-banner[hidden] { display: none; }
+.pwa-banner-text { flex: 1; min-width: 0; }
+.pwa-banner-text strong { display: block; font-size: .95rem; color: var(--ink); }
+.pwa-banner-text span { display: block; font-size: .8rem; color: var(--muted); }
+.pwa-banner-btn {
+  flex-shrink: 0;
+  background: var(--grad);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.pwa-banner-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: .8rem;
+  cursor: pointer;
+  padding: 10px 4px;
+}

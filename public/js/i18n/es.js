@@ -395,4 +395,10 @@ window.I18N = {
   map_popup: "👥 {n} cerca de {town}",
   map_empty: "Todavía no hay solteros activos en el mapa. ¡Invita a tus panas! 📣",
   map_fail: "No se pudo cargar el mapa. Revisa tu conexión.",
+
+  // ---- PWA: instalar la app ----
+  pwa_install_title: "Instala Citas NH 📲",
+  pwa_install_desc: "Acceso directo en tu pantalla, como una app normal.",
+  pwa_install_btn: "Instalar",
+  pwa_install_later: "Ahora no",
 };

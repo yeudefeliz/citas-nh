@@ -394,4 +394,10 @@ window.I18N_EN = {
   map_popup: "👥 {n} near {town}",
   map_empty: "No active singles on the map yet. Invite your friends! 📣",
   map_fail: "Couldn't load the map. Check your connection.",
+
+  // ---- PWA: install the app ----
+  pwa_install_title: "Install Citas NH 📲",
+  pwa_install_desc: "A home-screen shortcut, just like a regular app.",
+  pwa_install_btn: "Install",
+  pwa_install_later: "Not now",
 };

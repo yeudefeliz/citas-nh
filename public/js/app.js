@@ -3000,3 +3000,33 @@ if ("serviceWorker" in navigator) {
     });
   });
 }
+
+// Banner "Instalar app" (PWA): solo aparece si el navegador lo permite.
+// El evento beforeinstallprompt solo existe en navegadores compatibles
+// (Chrome/Edge en Android y escritorio); en iPhone el banner no sale y la
+// instalación se hace manual desde Compartir > "Añadir a pantalla de inicio".
+let deferredInstallPrompt = null;
+const pwaBanner = document.getElementById("pwa-install-banner");
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault(); // no mostramos el mini-infobar del navegador
+  deferredInstallPrompt = e;
+  if (pwaBanner) pwaBanner.hidden = false;
+});
+document.getElementById("pwa-install-btn")?.addEventListener("click", async () => {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  try {
+    await deferredInstallPrompt.userChoice;
+  } catch (_) {
+    /* el usuario cerró el diálogo */
+  }
+  deferredInstallPrompt = null;
+  if (pwaBanner) pwaBanner.hidden = true;
+});
+document.getElementById("pwa-install-later")?.addEventListener("click", () => {
+  if (pwaBanner) pwaBanner.hidden = true;
+});
+window.addEventListener("appinstalled", () => {
+  deferredInstallPrompt = null;
+  if (pwaBanner) pwaBanner.hidden = true;
+});
