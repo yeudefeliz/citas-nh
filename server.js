@@ -58,6 +58,16 @@ app.use('/api/referral', require('./routes/referral'));
 app.use('/api/top-picks', require('./routes/toppicks'));
 app.use('/api', require('./routes/social')); // /api/blocks, /api/reports
 app.use('/api', billing.router); // /api/billing/*, /api/admirers
+app.use('/api', require('./routes/admin')); // /api/admin/* (panel de administración)
+
+// --- Panel de administración -----------------------------------------------
+// Página aparte (no forma parte del SPA): GET /admin → public/admin.html.
+// El acceso se protege con la clave ADMIN_KEY (ver routes/admin.js).
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'), (err) => {
+    if (err) res.status(404).json({ error: 'NOT_FOUND' });
+  });
+});
 
 // --- Páginas legales ---------------------------------------------------
 // El frontend creará public/terminos.html y public/privacidad.html.
