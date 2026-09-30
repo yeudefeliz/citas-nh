@@ -100,13 +100,26 @@ async function api(path, options) {
     /* respuesta vacía o no-JSON */
   }
 
-  if (!res.ok) throw { code: data.error || "GENERIC", status: res.status };
+  if (!res.ok) throw { code: data.error || "GENERIC", status: res.status, data };
   return data;
+}
+
+// fmtRefill(segundos): "2 h 15 min" para el tiempo de recarga de créditos.
+function fmtRefill(sec) {
+  sec = Math.max(0, Math.ceil(Number(sec) || 0));
+  const h = Math.floor(sec / 3600);
+  const m = Math.ceil((sec % 3600) / 60);
+  const uh = t("credits_unitH"), um = t("credits_unitMin");
+  if (h > 0) return `${h} ${uh} ${m} ${um}`;
+  return `${m} ${um}`;
 }
 
 // Convierte el código de error del backend a texto traducido.
 function apiErrorMessage(err) {
   const code = err && err.code ? err.code : "GENERIC";
+  if (code === "NO_CREDITS") {
+    return t("err_NO_CREDITS", { time: fmtRefill(err.data && err.data.refillInSec) });
+  }
   return t("err_" + code);
 }
 
@@ -608,6 +621,13 @@ async function renderDiscover() {
     const data = await api("/api/discover" + qstr);
     card = data.card;
   } catch (err) {
+    // Sin créditos: mensaje claro con el tiempo de recarga + invitación al premium.
+    if (err && err.code === "NO_CREDITS") {
+      app.innerHTML = `<section class="discover"><h2>${t("discover_title")}</h2>
+        <div class="empty">💳<br>${esc(apiErrorMessage(err))}<br><br>
+        <a class="btn btn-primary" href="#/premium">👑 ${t("credits_goPremium")}</a></div></section>`;
+      return;
+    }
     app.innerHTML = errorHtml(err);
     return;
   }
@@ -1322,6 +1342,7 @@ async function renderPremium() {
         <li>💛 ${t("premium_f1")}</li>
         <li>❤️‍🔥 ${t("premium_f2")}</li>
         <li>🚀 ${t("premium_f3")}</li>
+        <li>💳 ${t("premium_f4")}</li>
       </ul>
       <p class="premium-price">${t("premium_price")}</p>
       <button class="btn btn-primary" id="btn-checkout">👑 ${t("premium_cta")}</button>
@@ -2230,6 +2251,20 @@ function showIncomingModal(signal) {
   });
 }
 
+// Tarjeta de créditos 💳 (saldo visible en el perfil).
+function creditsCardHtml(cs) {
+  const saldo = cs.unlimited
+    ? `<p class="credits-balance">💳 ${t("credits_unlimited")}</p>`
+    : `<p class="credits-balance">💳 <strong>${t("credits_balance", { n: cs.credits, max: cs.maxCredits })}</strong></p>
+       <p class="muted small">${cs.refillInSec > 0 ? t("credits_refillIn", { time: fmtRefill(cs.refillInSec) }) : t("credits_full")}</p>`;
+  return `<div class="card credits-card">
+    <h3>${t("credits_title")}</h3>
+    ${saldo}
+    <p class="muted small">💡 ${t("credits_costs")} · ${t("credits_rechargeNote")}</p>
+    ${!cs.unlimited ? `<p><a class="btn btn-ghost btn-sm" href="#/premium">${t("credits_goPremium")}</a></p>` : ""}
+  </div>`;
+}
+
 /* ----- #/perfil ----- */
 const LANG_OPTIONS = ["es", "en", "pt", "fr", "other"]; // códigos de idioma
 const GENDERS = ["man", "woman", "nonbinary", "unspecified"];
@@ -2327,9 +2362,19 @@ async function renderProfile() {
   const interests = (profile.interests || []).join(", ");
   const photos = profile.photos || [];
 
+  // Créditos 💳 → GET /api/credits {credits, maxCredits, unlimited, refillInSec}
+  let creditsHtml = "";
+  try {
+    const cs = await api("/api/credits");
+    creditsHtml = creditsCardHtml(cs);
+  } catch (e) {
+    /* sin tarjeta si falla */
+  }
+
   app.innerHTML = `
     <section class="profile">
       <h2>${t("profile_title")}</h2>
+      ${creditsHtml}
       ${boostHtml}
       ${verifyHtml}
       ${invisibleHtml}

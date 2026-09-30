@@ -429,4 +429,18 @@ window.I18N_EN = {
   pwa_install_manual_ios: "On iPhone: tap Share, then 'Add to Home Screen'.",
   pwa_install_manual_android: "On Android: open the browser menu ⋮ and tap 'Install app'.",
   pwa_install_manual_desktop: "In your browser: open the menu and choose 'Install Citas NH'.",
+
+  // ---- Credits 💳 ----
+  credits_title: "My credits 💳",
+  credits_balance: "{n} of {max} credits",
+  credits_unlimited: "∞ unlimited (Premium 👑)",
+  credits_refillIn: "Refill in {time}",
+  credits_full: "Fully recharged ✅",
+  credits_costs: "Viewing photos: 1 • Messages: 1",
+  credits_rechargeNote: "10 free every 6 hours",
+  credits_goPremium: "Go unlimited 👑",
+  credits_unitH: "h",
+  credits_unitMin: "min",
+  premium_f4: "Unlimited credits",
+  err_NO_CREDITS: "You're out of credits ⏳ Back in {time}.",
 };

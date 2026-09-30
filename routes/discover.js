@@ -9,6 +9,7 @@ const { auth } = require('../middleware/auth');
 const { calcularEdad } = require('../utils/validacion');
 const { distanciaEntreZips } = require('../utils/zipcoords');
 const { presencia } = require('../utils/presence');
+const { gastarCredito } = require('../utils/creditos');
 
 const router = express.Router();
 
@@ -94,6 +95,11 @@ router.get('/', auth, (req, res) => {
   const elegida = candidatas[0];
   if (!elegida) {
     return res.json({ card: null });
+  }
+  // Ver fotos de perfil cuesta 1 crédito (gratis si es Premium).
+  const cobro = gastarCredito(yo, 1);
+  if (!cobro.ok) {
+    return res.status(402).json({ error: cobro.error, refillInSec: cobro.refillInSec });
   }
   const fila = elegida.fila;
   const pres = presencia(fila.last_seen, fila.invisible_mode);

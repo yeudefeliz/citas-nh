@@ -1029,6 +1029,10 @@ legend { font-weight: 700; font-size: .92rem; padding: 0 8px; }
 .install-help { margin: 10px 0 0; }
 /* Logros: mismo relleno que las demás tarjetas del perfil */
 #achievements-card { padding: 18px; max-width: 100%; }
+/* Créditos 💳: tarjeta en el perfil */
+.credits-card { margin: 14px 0; padding: 18px; max-width: 100%; }
+.credits-card h3 { margin-top: 0; font-weight: 800; }
+.credits-balance { font-size: 1.25rem; margin: 6px 0; }
 .ref-note {
   background: linear-gradient(135deg, #fff8e1, #fef3c7);
   border: 1px solid #fde68a;

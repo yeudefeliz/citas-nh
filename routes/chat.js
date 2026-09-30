@@ -13,6 +13,7 @@ const { auth, getJwtSecret } = require('../middleware/auth');
 const { grantAchievement } = require('../utils/achievements');
 const { presencia } = require('../utils/presence');
 const { sendPush } = require('../utils/push');
+const { gastarCredito } = require('../utils/creditos');
 const jwt = require('jsonwebtoken');
 
 const router = express.Router();
@@ -142,6 +143,15 @@ router.get('/:matchId/messages', auth, (req, res) => {
     return res.status(403).json({ error: 'BLOCKED' });
   }
 
+  // Abrir la conversación (leer mensajes) cuesta 1 crédito.
+  // El polling (?after=<id>) es gratis: solo se cobra al entrar.
+  if (!req.query.after) {
+    const cobro = gastarCredito(req.userId, 1);
+    if (!cobro.ok) {
+      return res.status(402).json({ error: cobro.error, refillInSec: cobro.refillInSec });
+    }
+  }
+
   const after = Number(req.query.after);
   let mensajes;
   if (Number.isInteger(after) && after > 0) {
@@ -202,6 +212,12 @@ router.post('/:matchId/messages', auth, (req, res) => {
     return res.status(400).json({ error: 'MESSAGE_TOO_LONG' });
   }
 
+  // Enviar mensaje cuesta 1 crédito (gratis si es Premium).
+  const cobro = gastarCredito(req.userId, 1);
+  if (!cobro.ok) {
+    return res.status(402).json({ error: cobro.error, refillInSec: cobro.refillInSec });
+  }
+
   const ahora = new Date().toISOString();
   const nuevo = db
     .prepare(
@@ -251,6 +267,13 @@ router.post('/:matchId/voice', auth, uploadVoz.single('audio'), (req, res) => {
 
   if (!req.file) {
     return res.status(400).json({ error: 'NO_FILE' });
+  }
+
+  // La nota de voz también cuesta 1 crédito (gratis si es Premium).
+  const cobroVoz = gastarCredito(req.userId, 1);
+  if (!cobroVoz.ok) {
+    try { fs.unlinkSync(req.file.path); } catch (e) { /* nada */ }
+    return res.status(402).json({ error: cobroVoz.error, refillInSec: cobroVoz.refillInSec });
   }
 
   const ahora = new Date().toISOString();

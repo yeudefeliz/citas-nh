@@ -350,5 +350,23 @@ for (const u of sinCodigo) {
   asignarCodigo.run(generarCodigoRef(), u.id);
 }
 
+// --- Migración: sistema de créditos ---------------------------------------
+// 10 créditos gratis que se recargan cada 6 horas (lógica en utils/creditos.js).
+// Premium = ilimitado (no se descuenta).
+const columnasCreditos = {
+  credits: 'INTEGER NOT NULL DEFAULT 10',
+  credits_refilled_at: 'TEXT',
+};
+for (const [nombre, tipo] of Object.entries(columnasCreditos)) {
+  if (!columnasUsers.includes(nombre)) {
+    db.prepare(`ALTER TABLE users ADD COLUMN ${nombre} ${tipo}`).run();
+  }
+}
+// Usuarios existentes: arranque con 10 créditos y recarga marcada ahora.
+db.prepare(
+  `UPDATE users SET credits = 10, credits_refilled_at = ?
+   WHERE credits_refilled_at IS NULL`
+).run(new Date().toISOString());
+
 module.exports = db;
 module.exports.generarCodigoRef = generarCodigoRef;

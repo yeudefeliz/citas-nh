@@ -430,4 +430,18 @@ window.I18N = {
   pwa_install_manual_ios: "En iPhone: toca Compartir y luego «Añadir a pantalla de inicio».",
   pwa_install_manual_android: "En Android: abre el menú ⋮ del navegador y toca «Instalar app».",
   pwa_install_manual_desktop: "En tu navegador: abre el menú y elige «Instalar Citas NH».",
+
+  // ---- Créditos 💳 ----
+  credits_title: "Mis créditos 💳",
+  credits_balance: "{n} de {max} créditos",
+  credits_unlimited: "∞ ilimitados (Premium 👑)",
+  credits_refillIn: "Se recargan en {time}",
+  credits_full: "Recarga completa ✅",
+  credits_costs: "Ver fotos: 1 • Mensajes: 1",
+  credits_rechargeNote: "10 gratis cada 6 horas",
+  credits_goPremium: "Quiero ilimitados 👑",
+  credits_unitH: "h",
+  credits_unitMin: "min",
+  premium_f4: "Créditos ilimitados",
+  err_NO_CREDITS: "Te quedaste sin créditos ⏳ Vuelven en {time}.",
 };
