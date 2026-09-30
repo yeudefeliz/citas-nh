@@ -55,6 +55,14 @@ function texto(kind, lang, vars) {
       return es
         ? { title: '🎁 ¡Te enviaron un regalo!', body: (nombre ? nombre + ' te envió un regalo' : 'Te enviaron un regalo') + ' en Citas NH 💝' }
         : { title: '🎁 You got a gift!', body: (nombre ? nombre + ' sent you a gift' : 'Someone sent you a gift') + ' on Citas NH 💝' };
+    case 'suggestion_received':
+      return es
+        ? { title: '💘 ¡Te sugirieron como pareja!', body: (vars.matchmaker ? vars.matchmaker + ' cree que tú y ' + (vars.other || 'alguien') + ' harían buena pareja' : 'Alguien cree que harían buena pareja') + ' 💘' }
+        : { title: '💘 You were suggested as a match!', body: (vars.matchmaker ? vars.matchmaker + ' thinks you and ' + (vars.other || 'someone') + ' would make a great couple' : 'Someone thinks you two would make a great couple') + ' 💘' };
+    case 'karma_earned':
+      return es
+        ? { title: '⭐ ¡Ganaste Karma!', body: '+' + (vars.n || 0) + ' Karma de celestino 💘 (total: ' + (vars.total || 0) + ')' }
+        : { title: '⭐ You earned Karma!', body: '+' + (vars.n || 0) + ' matchmaker Karma 💘 (total: ' + (vars.total || 0) + ')' };
     default:
       return es
         ? { title: 'Citas NH', body: 'Tienes una novedad en Citas NH' }
@@ -63,8 +71,10 @@ function texto(kind, lang, vars) {
 }
 
 // sendPush(userId, kind, vars) — Envía a todos los dispositivos suscritos.
-// kind: 'like' | 'superlike' | 'match' | 'message' | 'dateplan_accepted' | 'gift'.
-// vars: {name, url}. Nunca lanza: los errores se tragan para no romper el flujo.
+// kind: 'like' | 'superlike' | 'match' | 'message' | 'dateplan_accepted' |
+//        'gift' | 'suggestion_received' | 'karma_earned'.
+// vars: {name, matchmaker, other, n, total, url}. Nunca lanza: los errores se
+// tragan para no romper el flujo.
 // Las suscripciones muertas (410/404) se borran solas.
 function sendPush(userId, kind, vars) {
   if (!userId) return;

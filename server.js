@@ -70,6 +70,7 @@ app.use('/api/achievements', require('./routes/achievements'));
 app.use('/api/push', require('./routes/push')); // Web Push: suscripciones
 app.use('/api/map', require('./routes/map')); // mapa de solteros (conteos)
 app.use('/api/credits', require('./routes/credits')); // saldo de créditos 💳
+app.use('/api/matchmaker', require('./routes/matchmaker')); // modo celestino 💘
 app.use('/api/top-picks', require('./routes/toppicks'));
 app.use('/api', require('./routes/social')); // /api/blocks, /api/reports
 app.use('/api', billing.router); // /api/billing/*, /api/admirers

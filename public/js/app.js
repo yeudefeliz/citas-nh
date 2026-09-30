@@ -457,6 +457,7 @@ function route() {
     case "#/registro": return renderRegister();
     case "#/descubrir": return renderDiscover();
     case "#/matches": return renderMatches();
+    case "#/celestino": return renderMatchmaker();
     case "#/perfil": return renderProfile();
     case "#/ajustes": return renderSettings();
     case "#/premium": return renderPremium();
@@ -1291,6 +1292,232 @@ async function renderMatches() {
   });
 }
 
+/* ----- #/celestino ----- */
+// Modo celestino 💘: sugerir parejas, ver propuestas recibidas, Karma y canjes.
+async function renderMatchmaker() {
+  app.innerHTML = `<section><h2>💘 ${t("mm_title")}</h2><p class="muted">${t("common_loading")}</p></section>`;
+
+  // REGLA: solo usuarios verificados pueden ser celestinos.
+  try {
+    const vs = await api("/api/verification/status");
+    if (!vs.isVerified) {
+      await renderVerifyGate();
+      return;
+    }
+  } catch (err) {
+    app.innerHTML = errorHtml(err);
+    return;
+  }
+
+  let status, candidates, received, sent;
+  try {
+    [status, candidates, received, sent] = await Promise.all([
+      api("/api/matchmaker/status"),
+      api("/api/matchmaker/candidates"),
+      api("/api/matchmaker/received"),
+      api("/api/matchmaker/sent"),
+    ]);
+  } catch (err) {
+    app.innerHTML = errorHtml(err);
+    return;
+  }
+
+  // Tarjeta de Karma + tabla de canje.
+  const rewardsHtml = (status.rewards || [])
+    .map(
+      (r) => `<li class="reward-row"><span><strong>${t("mm_reward_" + r.id)}</strong>
+        <small class="muted">${t("mm_rewardCost", { n: r.cost })}</small></span>
+        <button class="btn btn-sm btn-primary" data-redeem="${esc(r.id)}"
+          ${status.karma < r.cost ? "disabled" : ""}>${t("mm_redeem")}</button></li>`
+    )
+    .join("");
+
+  // Selector de candidatos: se eligen 2 de los matches.
+  const cands = candidates.candidates || [];
+  const candHtml = cands.length
+    ? `<ul class="match-list">` +
+      cands
+        .map((c) => {
+          const photo = c.photo;
+          return `<li><label class="match-item mm-pick">
+            <input type="checkbox" data-cand="${esc(c.userId)}" aria-label="${esc(c.displayName)}">
+            ${photo
+              ? `<img src="${esc(photo)}" alt="">`
+              : `<span class="avatar-fallback" aria-hidden="true">❤</span>`}
+            <span class="match-info">
+              <strong>${esc(c.displayName)}, ${esc(c.age)} ${vBadge(c.isVerified)}</strong>
+              <small class="muted">${esc(c.town || "")}</small>
+            </span>
+          </label></li>`;
+        })
+        .join("") +
+      `</ul>
+      <p class="muted small">${t("mm_pickHint", {
+        left: Math.max(0, status.maxPerDay - status.sentToday),
+        n: status.maxPerDay,
+      })}</p>
+      <p><button class="btn btn-primary" id="mm-suggest-btn" disabled>💘 ${t("mm_suggestBtn")}</button></p>`
+    : `<p class="muted">${t("mm_noCandidates")}</p>`;
+
+  // Propuestas recibidas (pendientes de mi respuesta).
+  const recs = received.suggestions || [];
+  const recHtml = recs.length
+    ? `<ul class="match-list">` +
+      recs
+        .map(
+          (s) => `<li><div class="match-item mm-sugg">
+            ${s.otherPhoto
+              ? `<img src="${esc(s.otherPhoto)}" alt="">`
+              : `<span class="avatar-fallback" aria-hidden="true">❤</span>`}
+            <span class="match-info">
+              <strong>${esc(s.otherName)}, ${esc(s.otherAge)}</strong>
+              <small class="muted">${t("mm_suggestedBy", { name: s.matchmakerName })}</small>
+            </span>
+            <span class="mm-actions">
+              <button class="btn btn-sm btn-primary" data-accept="${esc(s.id)}">${t("mm_accept")}</button>
+              <button class="btn btn-sm btn-ghost" data-reject="${esc(s.id)}">${t("mm_decline")}</button>
+            </span>
+          </div></li>`
+        )
+        .join("") +
+      `</ul>`
+    : `<p class="muted">${t("mm_receivedEmpty")}</p>`;
+
+  // Mis sugerencias enviadas.
+  const sents = sent.suggestions || [];
+  const sentHtml = sents.length
+    ? `<ul class="mm-sent-list">` +
+      sents
+        .map(
+          (s) => `<li class="mm-sent-row"><span>${esc(s.nameA)} 💘 ${esc(s.nameB)}</span>
+            <span class="badge mm-status-${esc(s.status)}">${t("mm_status_" + s.status)}</span></li>`
+        )
+        .join("") +
+      `</ul>`
+    : `<p class="muted">${t("mm_sentEmpty")}</p>`;
+
+  app.innerHTML = `<section class="matchmaker">
+    <h2>💘 ${t("mm_title")}</h2>
+    <div class="card mm-karma-card">
+      <h3>⭐ ${t("mm_karmaTitle")}</h3>
+      <p class="credits-balance">⭐ <strong>${esc(String(status.karma))}</strong> ${t("mm_karmaPoints")}</p>
+      <p class="muted small">${t("mm_howEarn")}</p>
+      <ul class="reward-list">${rewardsHtml}</ul>
+    </div>
+
+    <h3 class="section-sub">💘 ${t("mm_suggestTitle")}</h3>
+    ${candHtml}
+
+    <h3 class="section-sub">📩 ${t("mm_receivedTitle")}</h3>
+    ${recHtml}
+
+    <h3 class="section-sub">📤 ${t("mm_sentTitle")}</h3>
+    ${sentHtml}
+  </section>`;
+
+  // Elegir 2 candidatos como máximo.
+  const boxes = Array.from(app.querySelectorAll("[data-cand]"));
+  const suggestBtn = document.getElementById("mm-suggest-btn");
+  boxes.forEach((b) =>
+    b.addEventListener("change", () => {
+      const checked = boxes.filter((x) => x.checked);
+      if (checked.length > 2) {
+        b.checked = false;
+        toast(t("mm_maxTwo"));
+        return;
+      }
+      if (suggestBtn) suggestBtn.disabled = checked.length !== 2;
+    })
+  );
+  if (suggestBtn) {
+    suggestBtn.addEventListener("click", async () => {
+      const ids = boxes
+        .filter((x) => x.checked)
+        .map((x) => Number(x.getAttribute("data-cand")));
+      if (ids.length !== 2) return;
+      suggestBtn.disabled = true;
+      try {
+        // POST /api/matchmaker/suggest {userA, userB} → 201
+        await api("/api/matchmaker/suggest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userA: ids[0], userB: ids[1] }),
+        });
+        toast(t("mm_suggestOk"));
+        renderMatchmaker();
+      } catch (err) {
+        toast(apiErrorMessage(err));
+        suggestBtn.disabled = false;
+      }
+    });
+  }
+
+  // Aceptar / rechazar propuestas recibidas.
+  app.querySelectorAll("[data-accept]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      b.disabled = true;
+      try {
+        const r = await api("/api/matchmaker/respond", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            suggestionId: Number(b.getAttribute("data-accept")),
+            accept: true,
+          }),
+        });
+        if (r.introduced) {
+          toast(t("mm_introduced"));
+          location.hash = "#/matches";
+        } else {
+          renderMatchmaker();
+        }
+      } catch (err) {
+        toast(apiErrorMessage(err));
+        b.disabled = false;
+      }
+    })
+  );
+  app.querySelectorAll("[data-reject]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      b.disabled = true;
+      try {
+        await api("/api/matchmaker/respond", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            suggestionId: Number(b.getAttribute("data-reject")),
+            accept: false,
+          }),
+        });
+        toast(t("mm_rejected"));
+        renderMatchmaker();
+      } catch (err) {
+        toast(apiErrorMessage(err));
+        b.disabled = false;
+      }
+    })
+  );
+
+  // Canjear recompensas de Karma.
+  app.querySelectorAll("[data-redeem]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      b.disabled = true;
+      try {
+        await api("/api/matchmaker/redeem", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reward: b.getAttribute("data-redeem") }),
+        });
+        toast(t("mm_redeemOk"));
+        renderMatchmaker();
+      } catch (err) {
+        toast(apiErrorMessage(err));
+        b.disabled = false;
+      }
+    })
+  );
+}
+
 /* ----- #/premium ----- */
 async function renderPremium() {
   // Regreso de Stripe: ?estado=exito o ?estado=cancelado.
@@ -1568,13 +1795,21 @@ async function renderChat(matchId) {
     msgs.forEach((m) => {
       const tipo = m.type || "text";
       // Mensaje del sistema (ej. bienvenida de match): burbuja centrada,
-      // sin reacciones ni picker. El texto es una clave i18n.
+      // sin reacciones ni picker. El texto es una clave i18n; el formato
+      // "mm_intro:<nombre>" es la presentación del celestino (el nombre
+      // viaja como dato y se interpola; textContent evita inyección HTML).
       if (tipo === "system") {
         const sdiv = document.createElement("div");
         sdiv.className = "msg msg-system";
         sdiv.setAttribute("data-mid", m.id);
         const sp = document.createElement("p");
-        sp.textContent = t(m.text === "match_welcome" ? "match_welcome" : m.text);
+        let sysKey = m.text === "match_welcome" ? "match_welcome" : m.text;
+        let sysVars = null;
+        if (typeof m.text === "string" && m.text.startsWith("mm_intro:")) {
+          sysKey = "matchmaker_introMsg";
+          sysVars = { name: m.text.slice("mm_intro:".length) };
+        }
+        sp.textContent = t(sysKey, sysVars);
         sdiv.appendChild(sp);
         box.appendChild(sdiv);
         return;

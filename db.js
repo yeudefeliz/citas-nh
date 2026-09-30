@@ -368,5 +368,54 @@ db.prepare(
    WHERE credits_refilled_at IS NULL`
 ).run(new Date().toISOString());
 
+// --- Migración: modo celestino (matchmaker) ----------------------------------
+// suggestions: propuestas de pareja. user1_id < user2_id siempre (par normalizado).
+// status: 'pending' (esperando respuestas) | 'introduced' (ambos aceptaron)
+//         | 'rejected' (alguien rechazó).
+// u1_accepted / u2_accepted: aceptación independiente de cada uno.
+// karma_awarded: 1 cuando se dio el Karma de introducción.
+// chat_bonus_awarded: 1 cuando se dio el bonus por conversar (10+ mensajes).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS suggestions (
+    id INTEGER PRIMARY KEY,
+    matchmaker_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user1_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user2_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pending',
+    u1_accepted INTEGER NOT NULL DEFAULT 0,
+    u2_accepted INTEGER NOT NULL DEFAULT 0,
+    match_id INTEGER REFERENCES matches(id) ON DELETE SET NULL,
+    karma_awarded INTEGER NOT NULL DEFAULT 0,
+    chat_bonus_awarded INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    CHECK (user1_id < user2_id),
+    CHECK (user1_id != matchmaker_id AND user2_id != matchmaker_id)
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_sugg_pair
+    ON suggestions(matchmaker_id, user1_id, user2_id);
+  CREATE INDEX IF NOT EXISTS idx_sugg_users
+    ON suggestions(user1_id, user2_id, status);
+
+  -- Historial de Karma: puntos ganados y canjeados (auditoría visible).
+  CREATE TABLE IF NOT EXISTS karma_log (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    delta INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    ref_id INTEGER,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_karma_user ON karma_log(user_id, id);
+`);
+
+// Columna de saldo Karma en users.
+const columnasKarma = db
+  .prepare('PRAGMA table_info(users)')
+  .all()
+  .map((c) => c.name);
+if (!columnasKarma.includes('karma')) {
+  db.prepare('ALTER TABLE users ADD COLUMN karma INTEGER NOT NULL DEFAULT 0').run();
+}
+
 module.exports = db;
 module.exports.generarCodigoRef = generarCodigoRef;

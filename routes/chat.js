@@ -14,6 +14,7 @@ const { grantAchievement } = require('../utils/achievements');
 const { presencia } = require('../utils/presence');
 const { sendPush } = require('../utils/push');
 const { gastarCredito } = require('../utils/creditos');
+const { revisarBonusChat } = require('../utils/karma');
 const jwt = require('jsonwebtoken');
 
 const router = express.Router();
@@ -236,6 +237,9 @@ router.post('/:matchId/messages', auth, (req, res) => {
 
   pushSiAusente(match.id, req.userId, otroId);
 
+  // Bonus de Karma si este chat nació de una sugerencia de celestino.
+  revisarBonusChat(match.id);
+
   return res.status(201).json({
     message: {
       id: nuevo.lastInsertRowid,
@@ -295,6 +299,9 @@ router.post('/:matchId/voice', auth, uploadVoz.single('audio'), (req, res) => {
   }
 
   pushSiAusente(match.id, req.userId, otroId);
+
+  // Bonus de Karma si este chat nació de una sugerencia de celestino.
+  revisarBonusChat(match.id);
 
   return res.status(201).json({
     message: {
