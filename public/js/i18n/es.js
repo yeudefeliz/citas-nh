@@ -10,6 +10,8 @@
 window.I18N = {
   // ---- Generales ----
   appName: "Citas NH",
+  seo_title: "Citas NH — Conoce gente en New Hampshire",
+  seo_description: "Citas NH — la app de citas en español para New Hampshire. Conoce gente hispana en Manchester, Nashua y todo NH. Regístrate gratis.",
   nav_discover: "Descubrir",
   nav_matches: "Matches",
   nav_profile: "Perfil",

@@ -9,6 +9,8 @@
 window.I18N_EN = {
   // ---- General ----
   appName: "Citas NH",
+  seo_title: "Citas NH — Meet People in New Hampshire",
+  seo_description: "Citas NH — the Spanish-first dating app for New Hampshire. Meet Hispanic singles in Manchester, Nashua and all of NH. Sign up free.",
   nav_discover: "Discover",
   nav_matches: "Matches",
   nav_profile: "Profile",

@@ -57,8 +57,17 @@ function setLang(next) {
   lang = next === "en" ? "en" : "es";
   localStorage.setItem(LS_LANG, lang);
   document.documentElement.lang = lang;
+  syncSeoMeta(); // título + meta description en el idioma activo
   applyI18n(); // retraduce el HTML estático (atributos data-i18n)
   route();     // redibuja la vista actual en el nuevo idioma
+}
+
+// SEO: mantiene <title> y meta description en el idioma activo.
+// (Los crawlers leen el HTML estático en español; esto es para el usuario.)
+function syncSeoMeta() {
+  document.title = t("seo_title");
+  const md = document.querySelector('meta[name="description"]');
+  if (md) md.setAttribute("content", t("seo_description"));
 }
 
 // Traduce los elementos del index.html que usan data-i18n / data-i18n-ph.
@@ -3210,6 +3219,7 @@ async function renderSettings() {
 
 /* ---------- 6. Arranque ---------- */
 document.documentElement.lang = lang;
+syncSeoMeta(); // título + meta description según el idioma guardado
 applyI18n(); // traduce el HTML estático al idioma guardado
 route();     // dibuja la vista según el hash (o redirige a #/login)
 
