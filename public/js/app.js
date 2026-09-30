@@ -2274,17 +2274,37 @@ async function renderProfile() {
       </div>`
     : "";
 
-  // Tarjeta de verificación: badge si ya está verificado, o subir selfie.
+  // Tarjeta de verificación: estado según /api/verification/status.
+  let verifEstado = { status: profile.isVerified ? "verified" : "none", rejectReason: null };
+  try {
+    const vs = await api("/api/verification/status");
+    verifEstado = vs;
+  } catch (e) {
+    /* si falla, se muestra el formulario básico */
+  }
+  let verifCuerpo = "";
+  if (verifEstado.isVerified) {
+    verifCuerpo = `<p class="verify-ok">✅ ${t("verify_done")}</p>`;
+  } else if (verifEstado.status === "pending") {
+    verifCuerpo = `<p class="muted">🕐 <strong>${t("verify_pending_title")}</strong><br>${t("verify_pending_desc")}</p>`;
+  } else {
+    const motivo =
+      verifEstado.status === "rejected" && verifEstado.rejectReason
+        ? `<p class="verify-rejected"><strong>${t("verify_rejected_title")}:</strong> ${t("verify_reject_reason_" + verifEstado.rejectReason)}<br><span class="muted small">${t("verify_rejected_retry")}</span></p>`
+        : "";
+    verifCuerpo = `${motivo}
+      <p class="muted">${t("verify_desc")}</p>
+      ${guidelinesHtml()}
+      <div class="verify-row">
+        <input type="file" id="selfie-input" accept="image/*">
+        <button class="btn btn-primary" id="btn-verify">${t("verify_cta")}</button>
+      </div>
+      ${verifyChecksHtml()}`;
+  }
   const verifyHtml = `
     <div class="card verify-card">
       <h3>✅ ${t("verify_title")}</h3>
-      ${profile.isVerified
-        ? `<p class="verify-ok">✅ ${t("verify_done")}</p>`
-        : `<p class="muted">${t("verify_desc")}</p>
-           <div class="verify-row">
-             <input type="file" id="selfie-input" accept="image/*">
-             <button class="btn btn-primary" id="btn-verify">${t("verify_cta")}</button>
-           </div>`}
+      ${verifCuerpo}
     </div>`;
 
   // Modo invisible (solo Premium): no deja rastro en los perfiles que visitas.
@@ -2335,7 +2355,8 @@ async function renderProfile() {
       ${photos.length < MAX_PHOTOS
         ? `<label class="btn btn-ghost" for="photo-input">📷 ${t("profile_addPhoto")}
              <input type="file" id="photo-input" accept="image/*" hidden>
-           </label>`
+           </label>
+           <p class="muted small photo-hint">📸 ${t("photo_guidelines_hint")}</p>`
         : ""}
 
       <p class="field-label">🎥 ${t("profile_video")}</p>
@@ -2586,9 +2607,30 @@ async function renderProfile() {
     });
   }
 
+// guidelinesHtml(): pautas visibles de decencia para las fotos.
+function guidelinesHtml() {
+  return `
+    <div class="guidelines-box">
+      <p class="guidelines-title">📸 ${t("verify_guidelines_title")}</p>
+      <ul class="guidelines-list">
+        <li>${t("verify_guidelines_1")}</li>
+        <li>${t("verify_guidelines_2")}</li>
+        <li>${t("verify_guidelines_3")}</li>
+        <li>${t("verify_guidelines_4")}</li>
+      </ul>
+    </div>`;
+}
+
+// verifyChecksHtml(): casillas obligatorias de 18+ y pautas.
+function verifyChecksHtml() {
+  return `
+    <label class="check-row"><input type="checkbox" id="age-confirm"> <span>${t("verify_age_confirm")}</span></label>
+    <label class="check-row"><input type="checkbox" id="guidelines-accept"> <span>${t("verify_guidelines_accept")}</span></label>`;
+}
+
 // setupVerifyUpload(onVerified): conecta el input #selfie-input + botón
-// #btn-verify con POST /api/verification/request (multipart, campo "selfie").
-// onVerified() se llama cuando la verificación tiene éxito.
+// #btn-verify con POST /api/verification/request (multipart: selfie, age_confirm,
+// guidelines_accept). onVerified() se llama cuando la verificación tiene éxito.
 function setupVerifyUpload(onVerified) {
   const verifyBtn = document.getElementById("btn-verify");
   if (!verifyBtn) return;
@@ -2598,17 +2640,33 @@ function setupVerifyUpload(onVerified) {
       toast(t("verify_pickPhoto"));
       return;
     }
+    const ageConfirm = document.getElementById("age-confirm");
+    if (!ageConfirm || !ageConfirm.checked) {
+      toast(t("verify_age_required"));
+      return;
+    }
+    const guidelinesAccept = document.getElementById("guidelines-accept");
+    if (!guidelinesAccept || !guidelinesAccept.checked) {
+      toast(t("verify_guidelines_required"));
+      return;
+    }
     const fd = new FormData();
     fd.append("selfie", selfieInput.files[0]);
+    fd.append("age_confirm", "1");
+    fd.append("guidelines_accept", "1");
     verifyBtn.disabled = true;
     toast(t("verify_uploading"));
     try {
       const res = await api("/api/verification/request", { method: "POST", body: fd });
-      toast(t("verify_done"));
-      celebrateAchievements(res.newAchievements); // 🏆 "Perfil verificado"
+      if (res.status === "pending") {
+        toast(t("verify_pending_title"));
+      } else {
+        toast(t("verify_done"));
+      }
+      celebrateAchievements(res.newAchievements); // 🏆 "Perfil verificado" (al aprobar)
       onVerified();
     } catch (err) {
-      toast(apiErrorMessage(err)); // ej. SELFIE_SAME_AS_PHOTO
+      toast(apiErrorMessage(err)); // ej. SELFIE_SAME_AS_PHOTO, AGE_CONFIRM_REQUIRED
       verifyBtn.disabled = false;
     }
   });
@@ -2616,22 +2674,51 @@ function setupVerifyUpload(onVerified) {
 
 // renderVerifyGate(): pantalla obligatoria para usuarios sin verificar.
 // Bloquea Descubrir y Matches hasta completar la selfie de verificación.
+// Estados: none → formulario; pending → en revisión; rejected → motivo + reintento.
 async function renderVerifyGate() {
+  let estado = { status: "none", isVerified: false, rejectReason: null };
+  try {
+    estado = await api("/api/verification/status");
+  } catch (err) {
+    app.innerHTML = errorHtml(err);
+    return;
+  }
+  if (estado.isVerified) {
+    route(); // ya verificado: sigue a la vista pedida
+    return;
+  }
+
+  let cuerpo = "";
+  if (estado.status === "pending") {
+    cuerpo = `
+      <div class="verify-gate-emoji">🕐</div>
+      <h2>${t("verify_pending_title")}</h2>
+      <p class="muted">${t("verify_pending_desc")}</p>`;
+  } else {
+    const motivo =
+      estado.status === "rejected" && estado.rejectReason
+        ? `<p class="verify-rejected"><strong>${t("verify_rejected_title")}:</strong> ${t("verify_reject_reason_" + estado.rejectReason)}<br><span class="muted small">${t("verify_rejected_retry")}</span></p>`
+        : "";
+    cuerpo = `
+      <div class="verify-gate-emoji">🛡️</div>
+      <h2>${t("verify_gate_title")}</h2>
+      <p class="muted">${t("verify_gate_desc")}</p>
+      ${motivo}
+      ${guidelinesHtml()}
+      <div class="verify-row">
+        <input type="file" id="selfie-input" accept="image/*" capture="user">
+        <button class="btn btn-primary" id="btn-verify">${t("verify_cta")}</button>
+      </div>
+      ${verifyChecksHtml()}
+      <p class="muted small">${t("verify_gate_note")}</p>`;
+  }
+
   app.innerHTML = `
     <section class="verify-gate">
-      <div class="card verify-gate-card">
-        <div class="verify-gate-emoji">🛡️</div>
-        <h2>${t("verify_gate_title")}</h2>
-        <p class="muted">${t("verify_gate_desc")}</p>
-        <div class="verify-row">
-          <input type="file" id="selfie-input" accept="image/*" capture="user">
-          <button class="btn btn-primary" id="btn-verify">${t("verify_cta")}</button>
-        </div>
-        <p class="muted small">${t("verify_gate_note")}</p>
-      </div>
+      <div class="card verify-gate-card">${cuerpo}</div>
     </section>`;
-  // Al verificar, redibuja la vista actual (ya desbloqueada).
-  setupVerifyUpload(() => route());
+  // Al verificar (queda "pending"), redibuja la puerta con el estado nuevo.
+  setupVerifyUpload(() => renderVerifyGate());
 }
 
 // Verificación → usa el flujo compartido (input #selfie-input + #btn-verify).

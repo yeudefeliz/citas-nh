@@ -327,6 +327,22 @@ function generarCodigoRef() {
   return codigo;
 }
 
+// --- Migración: verificación manual (18+ y revisión de decencia) ---------------
+// verification_status: 'none' | 'pending' | 'verified' | 'rejected'
+// verification_photo: archivo de la selfie en private/verification (pendiente)
+// verification_reject_reason: código del motivo de rechazo (ver REJECT_REASONS)
+// age_confirmed: 1 cuando el usuario declaró 18+ en la verificación
+const columnasVerif2 = {
+  age_confirmed: 'INTEGER NOT NULL DEFAULT 0',
+  verification_photo: 'TEXT',
+  verification_reject_reason: 'TEXT',
+};
+for (const [nombre, tipo] of Object.entries(columnasVerif2)) {
+  if (!columnasUsers.includes(nombre)) {
+    db.prepare(`ALTER TABLE users ADD COLUMN ${nombre} ${tipo}`).run();
+  }
+}
+
 // Usuarios viejos sin código: se les asigna uno.
 const sinCodigo = db.prepare('SELECT id FROM users WHERE referral_code IS NULL').all();
 const asignarCodigo = db.prepare('UPDATE users SET referral_code = ? WHERE id = ?');

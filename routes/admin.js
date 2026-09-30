@@ -16,10 +16,15 @@
 // - Todos los endpoints (menos login) exigen JWT con role 'admin'.
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 const { getJwtSecret } = require('../middleware/auth');
 const { GIFT_CATALOG } = require('../utils/gifts');
+const { calcularEdad } = require('../utils/validacion');
+const { grantAchievement } = require('../utils/achievements');
+const { REJECT_REASONS } = require('./verification');
 
 const router = express.Router();
 
@@ -305,6 +310,88 @@ router.get('/admin/users-by-town', adminAuth, (req, res) => {
     .sort((a, b) => b.count - a.count);
 
   return res.json({ total, towns });
+});
+
+// --- GET /api/admin/verifications/pending → selfies en revisión -------------
+router.get('/admin/verifications/pending', adminAuth, (req, res) => {
+  const filas = db
+    .prepare(
+      `SELECT u.id, u.display_name, u.dob, u.created_at, p.town
+       FROM users u
+       LEFT JOIN profiles p ON p.user_id = u.id
+       WHERE u.verification_status = 'pending'
+       ORDER BY u.id ASC`
+    )
+    .all();
+  return res.json({
+    pending: filas.map((f) => ({
+      userId: f.id,
+      displayName: f.display_name,
+      age: calcularEdad(f.dob),
+      town: f.town || '',
+      createdAt: f.created_at,
+    })),
+  });
+});
+
+// --- GET /api/admin/verifications/photo/:userId → selfie privada (admin) ----
+const verifDir = path.join(__dirname, '..', 'private', 'verification');
+router.get('/admin/verifications/photo/:userId', adminAuth, (req, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  if (!Number.isInteger(userId)) return res.status(400).json({ error: 'BAD_ID' });
+  const u = db
+    .prepare('SELECT verification_photo FROM users WHERE id = ? AND verification_status = ?')
+    .get(userId, 'pending');
+  if (!u || !u.verification_photo) return res.status(404).json({ error: 'NOT_FOUND' });
+  // Anti path traversal: solo el nombre base dentro del directorio privado.
+  const ruta = path.join(verifDir, path.basename(u.verification_photo));
+  if (!fs.existsSync(ruta)) return res.status(404).json({ error: 'NOT_FOUND' });
+  return res.sendFile(ruta);
+});
+
+// --- POST /api/admin/verifications/:userId/approve → aprueba la selfie ------
+router.post('/admin/verifications/:userId/approve', adminAuth, (req, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  if (!Number.isInteger(userId)) return res.status(400).json({ error: 'BAD_ID' });
+  const u = db
+    .prepare('SELECT verification_status FROM users WHERE id = ?')
+    .get(userId);
+  if (!u) return res.status(404).json({ error: 'NOT_FOUND' });
+  db.prepare(
+    `UPDATE users
+     SET verification_status = 'verified', is_verified = 1, verification_reject_reason = NULL
+     WHERE id = ?`
+  ).run(userId);
+  const nuevos = [];
+  if (grantAchievement(userId, 'verified')) nuevos.push('verified');
+  return res.json({ ok: true, newAchievements: nuevos });
+});
+
+// --- POST /api/admin/verifications/:userId/reject {reason} → rechaza --------
+router.post('/admin/verifications/:userId/reject', adminAuth, (req, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  const reason = req.body && req.body.reason;
+  if (!Number.isInteger(userId)) return res.status(400).json({ error: 'BAD_ID' });
+  if (!REJECT_REASONS.includes(reason)) return res.status(400).json({ error: 'BAD_REASON' });
+  const u = db
+    .prepare('SELECT verification_status, verification_photo FROM users WHERE id = ?')
+    .get(userId);
+  if (!u) return res.status(404).json({ error: 'NOT_FOUND' });
+  // La selfie rechazada se borra (dato sensible; el usuario puede reintentar).
+  if (u.verification_photo) {
+    try {
+      fs.unlinkSync(path.join(verifDir, path.basename(u.verification_photo)));
+    } catch (e) {
+      /* nada */
+    }
+  }
+  db.prepare(
+    `UPDATE users
+     SET verification_status = 'rejected', is_verified = 0,
+         verification_photo = NULL, verification_reject_reason = ?
+     WHERE id = ?`
+  ).run(reason, userId);
+  return res.json({ ok: true });
 });
 
 module.exports = router;

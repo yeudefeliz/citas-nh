@@ -50,6 +50,19 @@ const ADMIN_STR = {
     colCount: "Usuarios",
     colPct: "%",
     loadError: "No se pudo cargar el panel.",
+    verifTitle: "Verificaciones pendientes",
+    verifEmpty: "No hay selfies en revisión. 🎉",
+    verifApprove: "Aprobar",
+    verifReject: "Rechazar",
+    verifReason: "Motivo",
+    verifApproved: "Perfil verificado ✅",
+    verifRejected: "Verificación rechazada.",
+    verifAge: "años",
+    reason_FACE_NOT_CLEAR: "Rostro no claro",
+    reason_FACE_COVERED: "Rostro tapado",
+    reason_PROVOCATIVE: "Provocativa",
+    reason_NOT_REAL: "No parece real",
+    reason_UNDERAGE_SUSPECT: "Parece menor de edad",
   },
   en: {
     title: "Citas NH · Admin",
@@ -93,6 +106,19 @@ const ADMIN_STR = {
     colCount: "Users",
     colPct: "%",
     loadError: "Couldn't load the dashboard.",
+    verifTitle: "Pending verifications",
+    verifEmpty: "No selfies under review. 🎉",
+    verifApprove: "Approve",
+    verifReject: "Reject",
+    verifReason: "Reason",
+    verifApproved: "Profile verified ✅",
+    verifRejected: "Verification rejected.",
+    verifAge: "y/o",
+    reason_FACE_NOT_CLEAR: "Face not clear",
+    reason_FACE_COVERED: "Face covered",
+    reason_PROVOCATIVE: "Provocative",
+    reason_NOT_REAL: "Doesn't look real",
+    reason_UNDERAGE_SUSPECT: "Looks underage",
   },
 };
 
@@ -200,15 +226,16 @@ async function renderDashboard() {
   document.getElementById("app-title").textContent = at("title");
   root.innerHTML = `<h2>📊 ${at("dashboardTitle")}</h2><p class="muted">${at("loading")}</p>`;
 
-  let overview, usersSeries, activity, recent, revenue, byTown;
+  let overview, usersSeries, activity, recent, revenue, byTown, verifPending;
   try {
-    [overview, usersSeries, activity, recent, revenue, byTown] = await Promise.all([
+    [overview, usersSeries, activity, recent, revenue, byTown, verifPending] = await Promise.all([
       apiAdmin("/api/admin/overview"),
       apiAdmin("/api/admin/users?days=30"),
       apiAdmin("/api/admin/activity?days=30"),
       apiAdmin("/api/admin/recent"),
       apiAdmin("/api/admin/revenue"),
       apiAdmin("/api/admin/users-by-town"),
+      apiAdmin("/api/admin/verifications/pending"),
     ]);
   } catch (err) {
     // Token inválido o expirado → volver al login.
@@ -234,6 +261,33 @@ async function renderDashboard() {
       <div class="kpi-card"><span class="kpi-num">${overview.messages}</span><span class="kpi-label">💬 ${at("kpiMessages")}</span></div>
       <div class="kpi-card kpi-gold"><span class="kpi-num">${overview.premiumCount}</span><span class="kpi-label">👑 ${at("kpiPremium")}</span></div>
       <div class="kpi-card kpi-gold"><span class="kpi-num">$${r.totalUSD}</span><span class="kpi-label">💰 ${at("kpiRevenue")}</span></div>
+    </div>
+
+    <div class="chart-card" id="verif-card">
+      <h3>🛡️ ${at("verifTitle")} (${(verifPending.pending || []).length})</h3>
+      <div id="verif-list">
+        ${(verifPending.pending || []).length === 0
+          ? `<p class="muted">${at("verifEmpty")}</p>`
+          : (verifPending.pending || []).map((v) => `
+          <div class="verif-item" data-user="${v.userId}">
+            <img class="verif-photo" data-user="${v.userId}" alt="">
+            <div class="verif-info">
+              <b>${esc(v.displayName)}</b>
+              <span class="muted small">${v.age} ${at("verifAge")}${v.town ? " · " + esc(v.town) : ""}</span>
+            </div>
+            <div class="verif-actions">
+              <button class="btn btn-primary btn-sm verif-approve" data-user="${v.userId}">${at("verifApprove")}</button>
+              <select class="verif-reason" data-user="${v.userId}" aria-label="${at("verifReason")}">
+                <option value="FACE_NOT_CLEAR">${at("reason_FACE_NOT_CLEAR")}</option>
+                <option value="FACE_COVERED">${at("reason_FACE_COVERED")}</option>
+                <option value="PROVOCATIVE">${at("reason_PROVOCATIVE")}</option>
+                <option value="NOT_REAL">${at("reason_NOT_REAL")}</option>
+                <option value="UNDERAGE_SUSPECT">${at("reason_UNDERAGE_SUSPECT")}</option>
+              </select>
+              <button class="btn-ghost btn btn-sm verif-reject" data-user="${v.userId}">${at("verifReject")}</button>
+            </div>
+          </div>`).join("")}
+      </div>
     </div>
 
     <div class="chart-card">
@@ -307,6 +361,51 @@ async function renderDashboard() {
   document.getElementById("admin-logout").addEventListener("click", () => {
     localStorage.removeItem(LS_ADMIN_TOKEN);
     renderLogin();
+  });
+
+  // Cola de verificación: carga las selfies (blob con token) y conecta botones.
+  document.querySelectorAll(".verif-photo").forEach((img) => {
+    const uid = img.dataset.user;
+    fetch("/api/admin/verifications/photo/" + uid, {
+      headers: { Authorization: "Bearer " + getAdminToken() },
+    })
+      .then((r) => (r.ok ? r.blob() : null))
+      .then((b) => {
+        if (b) img.src = URL.createObjectURL(b);
+      })
+      .catch(() => {});
+  });
+  document.querySelectorAll(".verif-approve").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        await apiAdmin("/api/admin/verifications/" + btn.dataset.user + "/approve", { method: "POST" });
+        alert(at("verifApproved"));
+        renderDashboard();
+      } catch (e) {
+        alert(at("generic"));
+        btn.disabled = false;
+      }
+    });
+  });
+  document.querySelectorAll(".verif-reject").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const uid = btn.dataset.user;
+      const sel = document.querySelector('.verif-reason[data-user="' + uid + '"]');
+      btn.disabled = true;
+      try {
+        await apiAdmin("/api/admin/verifications/" + uid + "/reject", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: sel ? sel.value : "FACE_NOT_CLEAR" }),
+        });
+        alert(at("verifRejected"));
+        renderDashboard();
+      } catch (e) {
+        alert(at("generic"));
+        btn.disabled = false;
+      }
+    });
   });
 
   // Las gráficas se dibujan cuando el canvas ya tiene tamaño.

@@ -254,3 +254,26 @@ table.admin-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
   color: #5b3a05;
   box-shadow: 0 4px 12px rgba(245, 158, 11, .4);
 }
+
+/* Cola de verificación de selfies */
+.verif-item {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.verif-item:last-child { border-bottom: none; }
+.verif-photo {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 12px;
+  background: #f1f1f1;
+  flex-shrink: 0;
+}
+.verif-info { display: flex; flex-direction: column; gap: 2px; min-width: 120px; }
+.verif-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-left: auto; }
+.verif-reason { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); font-size: .85rem; }
+.btn-sm { padding: 6px 12px; font-size: .85rem; }
