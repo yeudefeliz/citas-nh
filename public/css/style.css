@@ -943,6 +943,31 @@ legend { font-weight: 700; font-size: .92rem; padding: 0 8px; }
 .verify-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .verify-row input[type="file"] { max-width: 220px; }
 
+/* Puerta de verificación obligatoria (Descubrir/Matches sin verificar) */
+.verify-gate { display: flex; justify-content: center; padding: 24px 16px; }
+.verify-gate-card { max-width: 440px; text-align: center; padding: 28px 22px; }
+.verify-gate-emoji { font-size: 3rem; margin-bottom: 8px; }
+.verify-gate-card h2 { margin: 0 0 10px; font-size: 1.3rem; }
+.verify-gate-card .verify-row { justify-content: center; margin: 16px 0 10px; }
+.verify-gate-card .small { font-size: .82rem; }
+
+/* Aviso de perfil sin verificar */
+.unverif-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: .75rem;
+  font-weight: 800;
+  color: #b45309;
+  background: rgba(245, 158, 11, .14);
+  border: 1px solid rgba(245, 158, 11, .4);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: 4px;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
 /* Referidos */
 .referral-card { margin: 14px 0; padding: 18px; max-width: 100%; }
 .referral-card h3 { margin-top: 0; font-weight: 800; }

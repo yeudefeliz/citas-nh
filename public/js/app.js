@@ -120,9 +120,11 @@ function esc(s) {
     .replace(/'/g, "&#39;");
 }
 
-// vBadge(): badge ✅ de perfil verificado.
+// vBadge(): badge ✅ de perfil verificado, o aviso visible si no está verificado.
 function vBadge(isV) {
-  return isV ? '<span class="verif-badge" title="✅">✅</span>' : "";
+  return isV
+    ? '<span class="verif-badge" title="✅">✅</span>'
+    : `<span class="unverif-badge">⚠️ ${esc(t("unverified_badge"))}</span>`;
 }
 
 // achEmoji(): emoji de cada logro para las medallas del perfil.
@@ -580,6 +582,18 @@ function setDiscoverFilters(f) {
 
 async function renderDiscover() {
   app.innerHTML = `<section class="discover"><h2>${t("discover_title")}</h2><div class="skel skel-card" aria-hidden="true"></div><div class="skel-row" aria-hidden="true"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div></section>`;
+
+  // REGLA: sin verificación por selfie no hay descubrimiento.
+  try {
+    const vs = await api("/api/verification/status");
+    if (!vs.isVerified) {
+      await renderVerifyGate();
+      return;
+    }
+  } catch (err) {
+    app.innerHTML = errorHtml(err);
+    return;
+  }
 
   const filtros = getDiscoverFilters();
   const qs = new URLSearchParams();
@@ -1094,6 +1108,18 @@ async function openProfileViewer(userId) {
 /* ----- #/matches ----- */
 async function renderMatches() {
   app.innerHTML = `<section><h2>${t("matches_title")}</h2><div class="skel-row" aria-hidden="true"><div class="skel"></div></div><div class="skel-row" aria-hidden="true"><div class="skel"></div></div><div class="skel-row" aria-hidden="true"><div class="skel"></div></div></section>`;
+
+  // REGLA: sin verificación por selfie no se ven los matches.
+  try {
+    const vs = await api("/api/verification/status");
+    if (!vs.isVerified) {
+      await renderVerifyGate();
+      return;
+    }
+  } catch (err) {
+    app.innerHTML = errorHtml(err);
+    return;
+  }
 
   let admirers = { locked: true, count: 0 };
   let visitors = { locked: true, count: 0 };
@@ -2560,30 +2586,56 @@ async function renderProfile() {
     });
   }
 
-  // Verificación → POST /api/verification/request (multipart, campo "selfie")
+// setupVerifyUpload(onVerified): conecta el input #selfie-input + botón
+// #btn-verify con POST /api/verification/request (multipart, campo "selfie").
+// onVerified() se llama cuando la verificación tiene éxito.
+function setupVerifyUpload(onVerified) {
   const verifyBtn = document.getElementById("btn-verify");
-  if (verifyBtn) {
-    verifyBtn.addEventListener("click", async () => {
-      const selfieInput = document.getElementById("selfie-input");
-      if (!selfieInput.files.length) {
-        toast(t("verify_pickPhoto"));
-        return;
-      }
-      const fd = new FormData();
-      fd.append("selfie", selfieInput.files[0]);
-      verifyBtn.disabled = true;
-      toast(t("verify_uploading"));
-      try {
-        const res = await api("/api/verification/request", { method: "POST", body: fd });
-        toast(t("verify_done"));
-        celebrateAchievements(res.newAchievements); // 🏆 "Perfil verificado"
-        renderProfile();
-      } catch (err) {
-        toast(apiErrorMessage(err)); // ej. SELFIE_SAME_AS_PHOTO
-        verifyBtn.disabled = false;
-      }
-    });
-  }
+  if (!verifyBtn) return;
+  verifyBtn.addEventListener("click", async () => {
+    const selfieInput = document.getElementById("selfie-input");
+    if (!selfieInput.files.length) {
+      toast(t("verify_pickPhoto"));
+      return;
+    }
+    const fd = new FormData();
+    fd.append("selfie", selfieInput.files[0]);
+    verifyBtn.disabled = true;
+    toast(t("verify_uploading"));
+    try {
+      const res = await api("/api/verification/request", { method: "POST", body: fd });
+      toast(t("verify_done"));
+      celebrateAchievements(res.newAchievements); // 🏆 "Perfil verificado"
+      onVerified();
+    } catch (err) {
+      toast(apiErrorMessage(err)); // ej. SELFIE_SAME_AS_PHOTO
+      verifyBtn.disabled = false;
+    }
+  });
+}
+
+// renderVerifyGate(): pantalla obligatoria para usuarios sin verificar.
+// Bloquea Descubrir y Matches hasta completar la selfie de verificación.
+async function renderVerifyGate() {
+  app.innerHTML = `
+    <section class="verify-gate">
+      <div class="card verify-gate-card">
+        <div class="verify-gate-emoji">🛡️</div>
+        <h2>${t("verify_gate_title")}</h2>
+        <p class="muted">${t("verify_gate_desc")}</p>
+        <div class="verify-row">
+          <input type="file" id="selfie-input" accept="image/*" capture="user">
+          <button class="btn btn-primary" id="btn-verify">${t("verify_cta")}</button>
+        </div>
+        <p class="muted small">${t("verify_gate_note")}</p>
+      </div>
+    </section>`;
+  // Al verificar, redibuja la vista actual (ya desbloqueada).
+  setupVerifyUpload(() => route());
+}
+
+// Verificación → usa el flujo compartido (input #selfie-input + #btn-verify).
+  setupVerifyUpload(() => renderProfile());
 }
 
 // Dibuja las fotos con su botón de borrar.

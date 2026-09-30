@@ -222,6 +222,10 @@ window.I18N_EN = {
   verify_done: "Your profile is verified ✅",
   verify_pickPhoto: "Pick your selfie first 📸",
   verify_uploading: "Uploading selfie…",
+  verify_gate_title: "Prove you're real 🛡️",
+  verify_gate_desc: "For your safety and everyone's: only verified profiles can see and appear in matches. Take a new selfie (NOT one of your profile photos) and you're done.",
+  verify_gate_note: "Your verification selfie is private: nobody sees it, it only confirms you're a real person.",
+  unverified_badge: "Unverified",
 
   // ---- Voice notes ----
   chat_voice: "Voice note",

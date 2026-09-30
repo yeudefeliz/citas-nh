@@ -223,6 +223,10 @@ window.I18N = {
   verify_done: "Tu perfil está verificado ✅",
   verify_pickPhoto: "Elige primero tu selfie 📸",
   verify_uploading: "Subiendo selfie…",
+  verify_gate_title: "Verifica que eres real 🛡️",
+  verify_gate_desc: "Por tu seguridad y la de todos: solo los perfiles verificados pueden ver y salir en los matches. Tómate una selfie nueva (que NO sea una de tus fotos de perfil) y listo.",
+  verify_gate_note: "Tu selfie de verificación es privada: nadie la ve, solo confirma que eres una persona real.",
+  unverified_badge: "Sin verificar",
 
   // ---- Notas de voz ----
   chat_voice: "Nota de voz",

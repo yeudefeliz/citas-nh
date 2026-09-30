@@ -71,6 +71,7 @@ router.get('/', auth, (req, res) => {
        FROM users u
        JOIN profiles p ON p.user_id = u.id
        WHERE u.id != ?
+         AND u.is_verified = 1
          AND u.id NOT IN (SELECT target_id FROM votes WHERE voter_id = ?)
          AND u.id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?)
          AND u.id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?)
