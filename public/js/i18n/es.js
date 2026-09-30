@@ -33,6 +33,7 @@ window.I18N = {
   login_submit: "Entrar",
   login_noAccount: "¿No tienes cuenta?",
   login_goRegister: "Regístrate",
+  blog_link: "📝 Blog",
 
   // ---- Registro ----
   register_title: "Crea tu cuenta",

@@ -76,6 +76,10 @@ app.use('/api', require('./routes/social')); // /api/blocks, /api/reports
 app.use('/api', billing.router); // /api/billing/*, /api/admirers
 app.use('/api', require('./routes/admin')); // /api/admin/* (panel de administración)
 
+// --- Blog público --------------------------------------------------------
+// Sin login: GET /blog (lista) y GET /blog/:slug (artículo).
+app.use('/blog', require('./routes/blog'));
+
 // --- Panel de administración -----------------------------------------------
 // Página aparte (no forma parte del SPA): GET /admin → public/admin.html.
 // El acceso se protege con la clave ADMIN_KEY (ver routes/admin.js).

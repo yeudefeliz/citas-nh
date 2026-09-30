@@ -488,6 +488,7 @@ function renderLogin() {
           <button type="submit" class="btn btn-primary">${t("login_submit")}</button>
         </form>
         <p class="auth-switch">${t("login_noAccount")} <a href="#/registro">${t("login_goRegister")}</a></p>
+        <p class="auth-switch"><a href="/blog">${t("blog_link")}</a></p>
       </div>
     </section>`;
 
@@ -550,6 +551,7 @@ function renderRegister() {
           <button type="submit" class="btn btn-primary">${t("register_submit")}</button>
         </form>
         <p class="auth-switch">${t("register_haveAccount")} <a href="#/login">${t("register_goLogin")}</a></p>
+        <p class="auth-switch"><a href="/blog">${t("blog_link")}</a></p>
       </div>
     </section>`;
 
