@@ -5,3 +5,4 @@ private/
 *.log
 .env
 .DS_Store
+bin/
