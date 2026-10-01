@@ -73,12 +73,25 @@ const GENEROS = ['', 'mujer', 'hombre', 'no-binario', 'otro'];
 const BUSCA = ['', 'mujeres', 'hombres', 'todos'];
 
 // Arma el objeto de perfil que se devuelve al frontend.
+// AUTO-REPARACIÓN: si la fila de perfil no existe (p. ej. la DB se reinició
+// en Render y el JWT del teléfono sobrevivió), se crea una vacía en vez de
+// explotar con un TypeError → INTERNAL_ERROR.
 function armarPerfil(userId) {
-  const p = db
+  let p = db
     .prepare(
       'SELECT bio, gender, looking_for, languages, interests, town, profile_video FROM profiles WHERE user_id = ?'
     )
     .get(userId);
+  if (!p) {
+    db.prepare(
+      "INSERT OR IGNORE INTO profiles (user_id, updated_at) VALUES (?, datetime('now'))"
+    ).run(userId);
+    p = db
+      .prepare(
+        'SELECT bio, gender, looking_for, languages, interests, town, profile_video FROM profiles WHERE user_id = ?'
+      )
+      .get(userId) || {};
+  }
   const u = db
     .prepare(
       'SELECT invisible_mode, verification_status, is_verified FROM users WHERE id = ?'
@@ -87,12 +100,21 @@ function armarPerfil(userId) {
   const fotos = db
     .prepare('SELECT id, filename, position FROM photos WHERE user_id = ? ORDER BY position ASC, id ASC')
     .all(userId);
+  // JSON.parse seguro: si el campo trae basura, se usa [] en vez de romper.
+  const jsonSeguro = (texto) => {
+    try {
+      const v = JSON.parse(texto || '[]');
+      return Array.isArray(v) ? v : [];
+    } catch (e) {
+      return [];
+    }
+  };
   return {
     bio: p.bio || '',
     gender: p.gender || '',
     lookingFor: p.looking_for || '',
-    languages: JSON.parse(p.languages || '[]'),
-    interests: JSON.parse(p.interests || '[]'),
+    languages: jsonSeguro(p.languages),
+    interests: jsonSeguro(p.interests),
     town: p.town || '',
     photos: fotos.map((f) => ({
       id: f.id,

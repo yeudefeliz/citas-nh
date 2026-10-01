@@ -1575,3 +1575,98 @@ legend { font-weight: 700; font-size: .92rem; padding: 0 8px; }
   font-size: 12px; padding: 4px 10px; border-radius: 999px;
   background: rgba(255,255,255,.08); white-space: nowrap;
 }
+
+/* ============================================================
+   GLOW UP 2 ✨ — capa extra de belleza (mismo rosado #ff2e63)
+   Solo mejoras visuales, nada funcional.
+   ============================================================ */
+
+/* Barra superior: degradado animado que respira */
+#topbar {
+  background: linear-gradient(120deg, #ff2e63, #ff5e7e, #ff6b6b, #ff2e63);
+  background-size: 220% 220%;
+  animation: topbarFlow 9s ease-in-out infinite;
+  box-shadow: 0 8px 26px rgba(255, 46, 99, .42), 0 2px 6px rgba(255, 46, 99, .25);
+}
+@keyframes topbarFlow {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Títulos de sección con texto en degradado rosado */
+#app h2 {
+  background: linear-gradient(120deg, #c81e4e, #ff2e63 60%, #ff6b6b);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Botón principal: brillo que cruza al tocar */
+.btn-primary {
+  position: relative;
+  overflow: hidden;
+}
+.btn-primary::before {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; width: 46px;
+  left: -70px;
+  background: linear-gradient(105deg, transparent, rgba(255,255,255,.55), transparent);
+  transform: skewX(-18deg);
+  transition: left .55s ease;
+  pointer-events: none;
+}
+.btn-primary:active::before { left: 120%; }
+
+/* Tarjetas: elevación suave */
+.card { transition: transform .18s ease, box-shadow .22s ease; }
+.card:hover { transform: translateY(-3px); }
+
+/* Nav inferior: la pestaña activa late con brillo */
+#bottomnav a.active {
+  animation: navGlow 2.2s ease-in-out infinite;
+}
+@keyframes navGlow {
+  0%, 100% { box-shadow: 0 8px 20px rgba(255, 46, 99, .4); }
+  50% { box-shadow: 0 8px 28px rgba(255, 46, 99, .62); }
+}
+
+/* Estados vacíos: corazón flotante decorativo */
+.empty { position: relative; overflow: hidden; }
+.empty::before {
+  content: "💕";
+  position: absolute;
+  top: 10px; right: 14px;
+  font-size: 1.6rem;
+  opacity: .35;
+  animation: floatHeart 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes floatHeart {
+  0%, 100% { transform: translateY(0) rotate(-8deg); }
+  50% { transform: translateY(-7px) rotate(8deg); }
+}
+
+/* Campos: anillo de enfoque rosado más visible */
+input:focus, select:focus, textarea:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 4px rgba(255, 46, 99, .14), 0 6px 16px rgba(255, 46, 99, .1);
+  outline: none;
+}
+
+/* Primera foto del perfil: anillo rosado premium */
+.photo-thumb:first-child img {
+  border: 3px solid var(--brand);
+  box-shadow: 0 10px 26px rgba(255, 46, 99, .35);
+}
+
+/* Badges y chips: micro-elevación */
+.check:has(input:checked) {
+  box-shadow: 0 6px 16px rgba(255, 46, 99, .18);
+}
+
+/* Títulos del modal de match: brillo dorado-rosado */
+.modal-card h2, .match-title {
+  text-shadow: 0 2px 14px rgba(255, 46, 99, .3);
+}

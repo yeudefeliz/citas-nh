@@ -59,6 +59,8 @@ window.I18N_EN = {
   err_TOO_MANY_PHOTOS: "You can only upload 3 photos.",
   err_GENERIC: "Something went wrong. Try again.",
   err_NETWORK: "No connection. Check your internet.",
+  err_INTERNAL_ERROR: "Oops, something failed on our side. Try again 💕",
+  err_SESSION_EXPIRED: "Your session expired. Please log in again 💕",
 
   // ---- Discover ----
   discover_title: "Discover",

@@ -60,6 +60,8 @@ window.I18N = {
   err_TOO_MANY_PHOTOS: "Solo puedes subir 3 fotos.",
   err_GENERIC: "Algo salió mal. Inténtalo de nuevo.",
   err_NETWORK: "Sin conexión. Revisa tu internet.",
+  err_INTERNAL_ERROR: "Ups, algo falló de nuestro lado. Inténtalo de nuevo 💕",
+  err_SESSION_EXPIRED: "Tu sesión expiró. Inicia sesión de nuevo 💕",
 
   // ---- Descubrir ----
   discover_title: "Descubrir",

@@ -109,7 +109,19 @@ async function api(path, options) {
     /* respuesta vacía o no-JSON */
   }
 
-  if (!res.ok) throw { code: data.error || "GENERIC", status: res.status, data };
+  if (!res.ok) {
+    // 401 = sesión muerta (token inválido o el usuario ya no existe en la DB,
+    // p. ej. tras un reinicio de Render). Se limpia el token y se manda al
+    // login en vez de mostrar errores raros como err_INTERNAL_ERROR.
+    if (res.status === 401) {
+      try { localStorage.removeItem(LS_TOKEN); } catch (e) { /* nada */ }
+      const ruta = (location.hash || "").split("?")[0];
+      if (ruta !== "#/login" && ruta !== "#/registro") {
+        location.hash = "#/login";
+      }
+    }
+    throw { code: data.error || "GENERIC", status: res.status, data };
+  }
   return data;
 }
 

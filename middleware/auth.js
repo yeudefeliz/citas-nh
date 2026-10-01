@@ -44,6 +44,23 @@ function auth(req, res, next) {
     // El token se firmó con { userId }, así que lo recuperamos de ahí.
     req.userId = datos.userId;
 
+    // Verificar que el usuario TODAVÍA existe en la DB. En Render el disco
+    // es efímero: si el servicio se reinició, la DB se borró pero el JWT
+    // del teléfono sobrevivió. Sin este chequeo, las rutas explotan con
+    // INTERNAL_ERROR en vez de pedir login de nuevo.
+    if (db) {
+      try {
+        const existe = db
+          .prepare('SELECT 1 FROM users WHERE id = ?')
+          .get(datos.userId);
+        if (!existe) {
+          return res.status(401).json({ error: 'SESSION_EXPIRED' });
+        }
+      } catch (e) {
+        // Si la DB falla aquí, se deja pasar y la ruta lo manejará.
+      }
+    }
+
     // Última conexión (throttle: solo se escribe si tiene +2 min de
     // antigüedad, para no saturar la base en cada petición).
     if (db) {
