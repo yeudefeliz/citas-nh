@@ -270,9 +270,11 @@ legend { font-weight: 700; font-size: .92rem; padding: 0 8px; }
   box-shadow: var(--shadow-card);
   position: relative;
   transition: transform .28s ease-in, opacity .28s ease-in;
-  will-change: transform, opacity;
+  /* will-change solo en Descubrir (abajo): en el resto de tarjetas forzaba
+     capas de composición que en algunos móviles recortaban el contenido. */
 }
 /* Animaciones de voto: la tarjeta sale volando */
+.discover .card { will-change: transform, opacity; }
 .card.swipe-right { transform: translateX(130%) rotate(14deg); opacity: 0; }
 .card.swipe-left  { transform: translateX(-130%) rotate(-14deg); opacity: 0; }
 .card.swipe-up    { transform: translateY(-46%) scale(.88); opacity: 0; }
@@ -1007,7 +1009,15 @@ legend { font-weight: 700; font-size: .92rem; padding: 0 8px; }
 .photo-hint { margin: 6px 0 0; }
 
 /* Referidos */
-.referral-card { margin: 14px 0; padding: 18px; max-width: 100%; }
+.referral-card {
+  margin: 14px 0;
+  padding: 18px;
+  max-width: 100%;
+  /* En algunos móviles la primera letra salía recortada (glitch de composición
+     con overflow:hidden + border-radius). Nada dentro desborda, así que
+     overflow:visible la deja inmune sin cambiar el aspecto. */
+  overflow: visible;
+}
 .referral-card h3 { margin-top: 0; font-weight: 800; }
 .referral-code-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
 .referral-code {
@@ -1619,9 +1629,12 @@ legend { font-weight: 700; font-size: .92rem; padding: 0 8px; }
 }
 .btn-primary:active::before { left: 120%; }
 
-/* Tarjetas: elevación suave */
-.card { transition: transform .18s ease, box-shadow .22s ease; }
-.card:hover { transform: translateY(-3px); }
+/* Tarjetas: elevación suave (solo donde hay hover real; en táctil el :hover
+   se queda pegado tras tocar y la tarjeta quedaba "flotando") */
+.card { transition: transform .18s ease, opacity .28s ease-in, box-shadow .22s ease; }
+@media (hover: hover) {
+  .card:hover { transform: translateY(-3px); }
+}
 
 /* Nav inferior: la pestaña activa late con brillo */
 #bottomnav a.active {
@@ -1669,4 +1682,29 @@ input:focus, select:focus, textarea:focus {
 /* Títulos del modal de match: brillo dorado-rosado */
 .modal-card h2, .match-title {
   text-shadow: 0 2px 14px rgba(255, 46, 99, .3);
+}
+
+/* ============================================================
+   FIX interfaz Perfil 📱 — primera letra recortada + pulido
+   (mismo rosado #ff2e63, nada funcional)
+   ============================================================ */
+
+/* Banner "solo Premium": fondo cálido en degradado y tacto al tocar */
+.admirers-locked {
+  background: linear-gradient(135deg, #ffffff 0%, #fff5f7 55%, #fff9ec 100%);
+  box-shadow: 0 10px 26px rgba(255, 46, 99, .12), 0 4px 12px rgba(245, 158, 11, .14);
+  transition: transform .15s ease, box-shadow .2s ease;
+}
+.admirers-locked:active { transform: scale(.985); }
+.admirers-locked .chev { color: var(--brand); font-size: 1.6rem; font-weight: 900; }
+
+/* Tarjeta "Invita y gana": identidad cálida propia */
+.referral-card {
+  background: linear-gradient(150deg, #ffffff 0%, #fff6f8 60%, #fff8ec 100%);
+  box-shadow: 0 12px 30px rgba(255, 46, 99, .12);
+}
+.referral-card h3 { letter-spacing: -.3px; }
+/* Código de referido: pastilla con mejor contraste */
+.referral-code {
+  box-shadow: inset 0 2px 6px rgba(255, 46, 99, .08), 0 4px 12px rgba(255, 46, 99, .1);
 }
