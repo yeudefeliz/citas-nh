@@ -8,7 +8,7 @@ const fs = require('fs');
 const multer = require('multer');
 
 // Importar db.js crea la carpeta ./data y las tablas si no existen.
-require('./db');
+const db = require('./db');
 
 const app = express();
 
@@ -32,6 +32,21 @@ const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+// Fase 2 persistencia: los archivos viven como BLOB en la DB (replicada a
+// R2). Esta ruta los sirve desde la DB; si no están, pasa al static de
+// abajo (compatibilidad con archivos viejos que sigan en disco).
+const { servirBlob, nombreSano } = require('./utils/media');
+app.get('/uploads/:filename', (req, res, next) => {
+  const filename = req.params.filename || '';
+  if (!nombreSano(filename)) return res.status(404).json({ error: 'NOT_FOUND' });
+  const foto = db.prepare('SELECT data, mime FROM photos WHERE filename = ?').get(filename);
+  if (foto && foto.data) return servirBlob(res, foto.data, foto.mime);
+  const video = db
+    .prepare('SELECT profile_video_data AS data, profile_video_mime AS mime FROM profiles WHERE profile_video = ?')
+    .get(filename);
+  if (video && video.data) return servirBlob(res, video.data, video.mime);
+  return next();
+});
 app.use('/uploads', express.static(uploadsDir));
 
 // public/ → el frontend (lo construye otro agente; si la carpeta no existe,

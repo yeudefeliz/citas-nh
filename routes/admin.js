@@ -16,8 +16,6 @@
 // - Todos los endpoints (menos login) exigen JWT con role 'admin'.
 
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 const { getJwtSecret } = require('../middleware/auth');
@@ -335,18 +333,17 @@ router.get('/admin/verifications/pending', adminAuth, (req, res) => {
 });
 
 // --- GET /api/admin/verifications/photo/:userId → selfie privada (admin) ----
-const verifDir = path.join(__dirname, '..', 'private', 'verification');
+// Fase 2 persistencia: la selfie vive como BLOB en la DB.
 router.get('/admin/verifications/photo/:userId', adminAuth, (req, res) => {
   const userId = parseInt(req.params.userId, 10);
   if (!Number.isInteger(userId)) return res.status(400).json({ error: 'BAD_ID' });
   const u = db
-    .prepare('SELECT verification_photo FROM users WHERE id = ? AND verification_status = ?')
+    .prepare('SELECT verification_data AS data, verification_mime AS mime FROM users WHERE id = ? AND verification_status = ?')
     .get(userId, 'pending');
-  if (!u || !u.verification_photo) return res.status(404).json({ error: 'NOT_FOUND' });
-  // Anti path traversal: solo el nombre base dentro del directorio privado.
-  const ruta = path.join(verifDir, path.basename(u.verification_photo));
-  if (!fs.existsSync(ruta)) return res.status(404).json({ error: 'NOT_FOUND' });
-  return res.sendFile(ruta);
+  if (!u || !u.data) return res.status(404).json({ error: 'NOT_FOUND' });
+  res.set('Content-Type', u.mime || 'image/jpeg');
+  res.set('Content-Length', String(u.data.length));
+  return res.send(u.data);
 });
 
 // --- POST /api/admin/verifications/:userId/approve → aprueba la selfie ------
@@ -377,62 +374,28 @@ router.post('/admin/verifications/:userId/reject', adminAuth, (req, res) => {
     .prepare('SELECT verification_status, verification_photo FROM users WHERE id = ?')
     .get(userId);
   if (!u) return res.status(404).json({ error: 'NOT_FOUND' });
-  // La selfie rechazada se borra (dato sensible; el usuario puede reintentar).
-  if (u.verification_photo) {
-    try {
-      fs.unlinkSync(path.join(verifDir, path.basename(u.verification_photo)));
-    } catch (e) {
-      /* nada */
-    }
-  }
+  // La selfie rechazada se borra de la DB (dato sensible; el usuario puede reintentar).
   db.prepare(
     `UPDATE users
      SET verification_status = 'rejected', is_verified = 0,
-         verification_photo = NULL, verification_reject_reason = ?
+         verification_photo = NULL, verification_data = NULL,
+         verification_mime = NULL, verification_reject_reason = ?
      WHERE id = ?`
   ).run(reason, userId);
   return res.json({ ok: true });
 });
 
 // --- DELETE /api/admin/users/:id — Borra un usuario y todo lo suyo -------
-// (perfil, fotos del disco, selfie de verificación; las tablas hijas caen
+// (perfil, fotos, selfie, mensajes con sus blobs; las tablas hijas caen
 // por ON DELETE CASCADE). Solo para limpieza/moderación.
 router.delete('/admin/users/:id', adminAuth, (req, res) => {
   const userId = parseInt(req.params.id, 10);
   if (!Number.isInteger(userId)) return res.status(400).json({ error: 'BAD_ID' });
   const u = db
-    .prepare('SELECT id, verification_photo FROM users WHERE id = ?')
+    .prepare('SELECT id FROM users WHERE id = ?')
     .get(userId);
   if (!u) return res.status(404).json({ error: 'NOT_FOUND' });
-  const fotos = db
-    .prepare('SELECT filename FROM photos WHERE user_id = ?')
-    .all(userId);
-  const perfil = db
-    .prepare('SELECT profile_video FROM profiles WHERE user_id = ?')
-    .get(userId);
   db.prepare('DELETE FROM users WHERE id = ?').run(userId);
-  const uploadsDir = path.join(__dirname, '..', 'uploads');
-  for (const foto of fotos) {
-    try {
-      fs.unlinkSync(path.join(uploadsDir, path.basename(foto.filename)));
-    } catch (e) {
-      /* nada */
-    }
-  }
-  if (perfil && perfil.profile_video) {
-    try {
-      fs.unlinkSync(path.join(uploadsDir, path.basename(perfil.profile_video)));
-    } catch (e) {
-      /* nada */
-    }
-  }
-  if (u.verification_photo) {
-    try {
-      fs.unlinkSync(path.join(verifDir, path.basename(u.verification_photo)));
-    } catch (e) {
-      /* nada */
-    }
-  }
   return res.json({ ok: true, deleted: userId });
 });
 

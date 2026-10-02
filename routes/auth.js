@@ -1,8 +1,6 @@
 // routes/auth.js — Registro, login, sesión actual y borrado de cuenta.
 
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
@@ -12,9 +10,6 @@ const { emailValido, zipValido, dobValida, calcularEdad } = require('../utils/va
 const { grantAchievement } = require('../utils/achievements');
 
 const router = express.Router();
-
-// Carpeta donde se guardan las fotos (para borrarlas al eliminar la cuenta).
-const uploadsDir = path.join(__dirname, '..', 'uploads');
 
 // Construye el objeto público del usuario (NUNCA incluye password_hash).
 function usuarioPublico(fila) {
@@ -166,36 +161,11 @@ router.get('/me', auth, (req, res) => {
   });
 });
 
-// DELETE /api/auth/account — Borra la cuenta, sus fotos y su video del
-// disco y todo lo relacionado (las tablas hijas se borran solas por ON
-// DELETE CASCADE).
+// DELETE /api/auth/account — Borra la cuenta y todo lo relacionado.
+// Fase 2 persistencia: fotos, video, selfie y notas de voz viven como BLOB
+// en la DB, así que se van con las filas (ON DELETE CASCADE).
 router.delete('/account', auth, (req, res) => {
-  const fotos = db
-    .prepare('SELECT filename FROM photos WHERE user_id = ?')
-    .all(req.userId);
-  const perfil = db
-    .prepare('SELECT profile_video FROM profiles WHERE user_id = ?')
-    .get(req.userId);
-
   db.prepare('DELETE FROM users WHERE id = ?').run(req.userId);
-
-  // Borrar los archivos de foto y el video del disco (si alguno falla,
-  // no rompemos nada).
-  for (const foto of fotos) {
-    try {
-      fs.unlinkSync(path.join(uploadsDir, foto.filename));
-    } catch (e) {
-      // El archivo ya no existía; seguimos con el siguiente.
-    }
-  }
-  if (perfil && perfil.profile_video) {
-    try {
-      fs.unlinkSync(path.join(uploadsDir, perfil.profile_video));
-    } catch (e) {
-      // El archivo ya no existía.
-    }
-  }
-
   return res.json({ ok: true });
 });
 

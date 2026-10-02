@@ -8,13 +8,12 @@
 // Solo al aprobar, el perfil queda verificado con el badge ✅.
 
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
 const db = require('../db');
 const { auth } = require('../middleware/auth');
 const { grantAchievement } = require('../utils/achievements');
+const { nombreArchivo } = require('../utils/media');
 
 const router = express.Router();
 
@@ -27,20 +26,10 @@ const REJECT_REASONS = [
   'UNDERAGE_SUSPECT',
 ];
 
-// Las selfies de verificación NO son públicas: van a ./private/verification.
-const verifDir = path.join(__dirname, '..', 'private', 'verification');
-if (!fs.existsSync(verifDir)) {
-  fs.mkdirSync(verifDir, { recursive: true });
-}
-
+// Las selfies de verificación NO son públicas y van a la DB como BLOB
+// (fase 2 persistencia: el disco de Render es efímero, la DB se replica).
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, verifDir),
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
-      cb(null, 'verif-' + crypto.randomBytes(12).toString('hex') + ext);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype && file.mimetype.startsWith('image/')) {
@@ -53,20 +42,8 @@ const upload = multer({
   },
 });
 
-function sha256Archivo(ruta) {
-  const datos = fs.readFileSync(ruta);
-  return crypto.createHash('sha256').update(datos).digest('hex');
-}
-
-function borrarSelfie(filename) {
-  if (!filename) return;
-  // Solo borra dentro del directorio de verificación (anti path traversal).
-  const base = path.basename(filename);
-  try {
-    fs.unlinkSync(path.join(verifDir, base));
-  } catch (e) {
-    /* ya no existe; nada que hacer */
-  }
+function sha256Buffer(buffer) {
+  return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
 // GET /api/verification/status — estado actual de mi verificación.
@@ -95,22 +72,14 @@ router.post('/request', auth, upload.single('selfie'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'NO_FILE' });
   }
-  const limpiar = () => {
-    try {
-      fs.unlinkSync(req.file.path);
-    } catch (e) {
-      /* nada */
-    }
-  };
+  // Con memoryStorage no hay archivo en disco: no hay nada que limpiar.
 
   // Segunda capa 18+: declaración explícita obligatoria.
   if (req.body.age_confirm !== '1' && req.body.age_confirm !== 'true') {
-    limpiar();
     return res.status(400).json({ error: 'AGE_CONFIRM_REQUIRED' });
   }
   // Aceptación de las pautas de decencia obligatoria.
   if (req.body.guidelines_accept !== '1' && req.body.guidelines_accept !== 'true') {
-    limpiar();
     return res.status(400).json({ error: 'GUIDELINES_ACCEPT_REQUIRED' });
   }
 
@@ -118,49 +87,36 @@ router.post('/request', auth, upload.single('selfie'), (req, res) => {
     .prepare('SELECT is_verified, verification_status, verification_photo FROM users WHERE id = ?')
     .get(req.userId);
   if (!actual) {
-    limpiar();
     return res.status(404).json({ error: 'USER_NOT_FOUND' });
   }
   if (actual.is_verified) {
-    limpiar();
     return res.json({ status: 'verified', isVerified: true });
   }
 
-  // Hash de la selfie subida.
-  let hashSelfie;
-  try {
-    hashSelfie = sha256Archivo(req.file.path);
-  } catch (e) {
-    limpiar();
-    return res.status(400).json({ error: 'INVALID_FILE' });
-  }
+  // Hash de la selfie subida (directo del buffer en memoria).
+  const hashSelfie = sha256Buffer(req.file.buffer);
 
   // La selfie NO puede ser una foto que ya está en el perfil: tiene que
   // ser una foto nueva tomada ahora (prueba básica de "persona real").
-  const fotos = db.prepare('SELECT filename FROM photos WHERE user_id = ?').all(req.userId);
+  const fotos = db.prepare('SELECT data FROM photos WHERE user_id = ? AND data IS NOT NULL').all(req.userId);
   for (const f of fotos) {
-    const rutaFoto = path.join(__dirname, '..', 'uploads', f.filename);
-    try {
-      if (sha256Archivo(rutaFoto) === hashSelfie) {
-        limpiar();
-        return res.status(400).json({ error: 'SELFIE_SAME_AS_PHOTO' });
-      }
-    } catch (e) {
-      // La foto vieja ya no existe en disco; la saltamos.
+    if (sha256Buffer(f.data) === hashSelfie) {
+      return res.status(400).json({ error: 'SELFIE_SAME_AS_PHOTO' });
     }
   }
 
-  // Si había una selfie pendiente/rechazada anterior, se reemplaza.
-  borrarSelfie(actual.verification_photo);
-
+  // Si había una selfie pendiente/rechazada anterior, el UPDATE la reemplaza.
+  const filename = nombreArchivo('verif', req.file.originalname);
   db.prepare(
     `UPDATE users
      SET verification_status = 'pending',
          verification_photo = ?,
+         verification_data = ?,
+         verification_mime = ?,
          verification_reject_reason = NULL,
          age_confirmed = 1
      WHERE id = ?`
-  ).run(path.basename(req.file.path), req.userId);
+  ).run(filename, req.file.buffer, req.file.mimetype, req.userId);
 
   return res.json({ status: 'pending', isVerified: false });
 });

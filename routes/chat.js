@@ -4,9 +4,7 @@
 // Tipos de mensaje: 'text' (normal), 'voice' (nota de voz) y 'gift' (regalo).
 
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const multer = require('multer');
 const db = require('../db');
 const { auth, getJwtSecret } = require('../middleware/auth');
@@ -15,6 +13,7 @@ const { presencia } = require('../utils/presence');
 const { sendPush } = require('../utils/push');
 const { gastarCredito } = require('../utils/creditos');
 const { revisarBonusChat } = require('../utils/karma');
+const { nombreArchivo } = require('../utils/media');
 const jwt = require('jsonwebtoken');
 
 const router = express.Router();
@@ -22,21 +21,10 @@ const router = express.Router();
 const MAX_TEXTO = 1000;
 const MAX_VOICE_BYTES = 2 * 1024 * 1024; // 2 MB
 
-// Las notas de voz NO son públicas: van a ./private/voice y se sirven
-// con autenticación (GET /api/chat/voice/:archivo?token=<JWT>).
-const voiceDir = path.join(__dirname, '..', 'private', 'voice');
-if (!fs.existsSync(voiceDir)) {
-  fs.mkdirSync(voiceDir, { recursive: true });
-}
-
+// Las notas de voz NO son públicas y van a la DB como BLOB (fase 2
+// persistencia). Se sirven con autenticación (GET /api/chat/voice/:archivo?token=<JWT>).
 const uploadVoz = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, voiceDir),
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname || '').toLowerCase() || '.webm';
-      cb(null, 'voz-' + crypto.randomBytes(12).toString('hex') + ext);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: MAX_VOICE_BYTES },
   fileFilter: (req, file, cb) => {
     if (file.mimetype && file.mimetype.startsWith('audio/')) {
@@ -259,13 +247,11 @@ router.post('/:matchId/messages', auth, (req, res) => {
 router.post('/:matchId/voice', auth, uploadVoz.single('audio'), (req, res) => {
   const match = obtenerMatch(req.params.matchId, req.userId);
   if (!match) {
-    try { fs.unlinkSync(req.file.path); } catch (e) { /* nada */ }
     return res.status(404).json({ error: 'MATCH_NOT_FOUND' });
   }
 
   const otroId = match.user1_id === req.userId ? match.user2_id : match.user1_id;
   if (hayBloqueo(req.userId, otroId)) {
-    try { fs.unlinkSync(req.file.path); } catch (e) { /* nada */ }
     return res.status(403).json({ error: 'BLOCKED' });
   }
 
@@ -276,18 +262,18 @@ router.post('/:matchId/voice', auth, uploadVoz.single('audio'), (req, res) => {
   // La nota de voz también cuesta 1 crédito (gratis si es Premium).
   const cobroVoz = gastarCredito(req.userId, 1);
   if (!cobroVoz.ok) {
-    try { fs.unlinkSync(req.file.path); } catch (e) { /* nada */ }
     return res.status(402).json({ error: cobroVoz.error, refillInSec: cobroVoz.refillInSec });
   }
 
   const ahora = new Date().toISOString();
-  const audioUrl = '/api/chat/voice/' + req.file.filename;
+  const nombre = nombreArchivo('voz', req.file.originalname);
+  const audioUrl = '/api/chat/voice/' + nombre;
   const nuevo = db
     .prepare(
-      `INSERT INTO messages (match_id, sender_id, text, type, audio_url, created_at)
-       VALUES (?, ?, '', 'voice', ?, ?)`
+      `INSERT INTO messages (match_id, sender_id, text, type, audio_url, audio_data, audio_mime, created_at)
+       VALUES (?, ?, '', 'voice', ?, ?, ?, ?)`
     )
-    .run(match.id, req.userId, audioUrl, ahora);
+    .run(match.id, req.userId, audioUrl, req.file.buffer, req.file.mimetype, ahora);
 
   // Logro "chatterbox": cuenta las notas de voz también.
   const nuevosLogros = [];
@@ -382,9 +368,9 @@ router.get('/voice/:archivo', (req, res) => {
   }
 
   const mensaje = db
-    .prepare("SELECT match_id, sender_id FROM messages WHERE type = 'voice' AND audio_url = ?")
+    .prepare("SELECT match_id, sender_id, audio_data AS data, audio_mime AS mime FROM messages WHERE type = 'voice' AND audio_url = ?")
     .get('/api/chat/voice/' + archivo);
-  if (!mensaje) {
+  if (!mensaje || !mensaje.data) {
     return res.status(404).json({ error: 'NOT_FOUND' });
   }
 
@@ -397,11 +383,9 @@ router.get('/voice/:archivo', (req, res) => {
     return res.status(403).json({ error: 'BLOCKED' });
   }
 
-  const ruta = path.join(voiceDir, archivo);
-  if (!fs.existsSync(ruta)) {
-    return res.status(404).json({ error: 'NOT_FOUND' });
-  }
-  return res.sendFile(ruta);
+  res.set('Content-Type', mensaje.mime || 'audio/webm');
+  res.set('Content-Length', String(mensaje.data.length));
+  return res.send(mensaje.data);
 });
 
 // POST /api/chat/:matchId/dateplan — Propone una cita: {place, dateTime, note?}.

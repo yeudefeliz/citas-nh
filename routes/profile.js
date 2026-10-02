@@ -1,35 +1,21 @@
 // routes/profile.js — Ver/editar el perfil y gestionar las fotos.
 
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
 const multer = require('multer');
 const db = require('../db');
 const { auth } = require('../middleware/auth');
 const { esPremium } = require('./billing');
 const { limpiarTexto, calcularEdad } = require('../utils/validacion');
 const { presencia } = require('../utils/presence');
+const { nombreArchivo } = require('../utils/media');
 
 const router = express.Router();
 
-// Carpeta donde se guardan las fotos subidas.
-const uploadsDir = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// Configuración de multer: solo imágenes, máximo 5 MB por archivo,
-// nombre de archivo aleatorio (crypto) + extensión original.
+// Configuración de multer: solo imágenes, máximo 5 MB por archivo.
+// Fase 2 persistencia: memoryStorage — los bytes van a la DB (BLOB), que
+// Litestream replica a R2. El disco de Render es efímero.
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadsDir),
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname || '').toLowerCase();
-      const aleatorio = crypto.randomBytes(16).toString('hex');
-      cb(null, aleatorio + ext);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype && file.mimetype.startsWith('image/')) {
@@ -46,16 +32,9 @@ const MAX_FOTOS = 3;
 const MAX_VIDEO_BYTES = 30 * 1024 * 1024; // 30 MB
 
 // Configuración de multer para el VIDEO de presentación: solo video/*,
-// máximo 30 MB. Se guarda en la misma carpeta pública /uploads que las fotos.
+// máximo 30 MB. Los bytes van a la DB (fase 2 persistencia).
 const uploadVideo = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadsDir),
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname || '').toLowerCase() || '.mp4';
-      const aleatorio = crypto.randomBytes(16).toString('hex');
-      cb(null, 'video-' + aleatorio + ext);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: MAX_VIDEO_BYTES },
   fileFilter: (req, file, cb) => {
     if (file.mimetype && file.mimetype.startsWith('video/')) {
@@ -308,23 +287,19 @@ router.post('/photos', auth, upload.single('photo'), (req, res) => {
     .get(req.userId).n;
 
   if (conteo >= MAX_FOTOS) {
-    // Ya tiene 3: borramos el archivo recién subido y rechazamos.
-    try {
-      fs.unlinkSync(req.file.path);
-    } catch (e) {
-      // Nada que hacer si ya no existe.
-    }
+    // Ya tiene 3: se rechaza (con memoryStorage no hay archivo en disco).
     return res.status(400).json({ error: 'TOO_MANY_PHOTOS' });
   }
 
+  const filename = nombreArchivo('', req.file.originalname);
   db.prepare(
-    'INSERT INTO photos (user_id, filename, position, created_at) VALUES (?, ?, ?, ?)'
-  ).run(req.userId, req.file.filename, conteo, new Date().toISOString());
+    'INSERT INTO photos (user_id, filename, position, data, mime, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(req.userId, filename, conteo, req.file.buffer, req.file.mimetype, new Date().toISOString());
 
   return res.status(201).json({ photos: armarPerfil(req.userId).photos });
 });
 
-// DELETE /api/profile/photos/:id — Borra una foto propia (registro + archivo).
+// DELETE /api/profile/photos/:id — Borra una foto propia (el BLOB se va con la fila).
 router.delete('/photos/:id', auth, (req, res) => {
   const foto = db
     .prepare('SELECT user_id, filename FROM photos WHERE id = ?')
@@ -337,40 +312,24 @@ router.delete('/photos/:id', auth, (req, res) => {
     return res.status(403).json({ error: 'FORBIDDEN' });
   }
 
-  try {
-    fs.unlinkSync(path.join(uploadsDir, foto.filename));
-  } catch (e) {
-    // El archivo ya no existía; igual borramos el registro.
-  }
   db.prepare('DELETE FROM photos WHERE id = ?').run(req.params.id);
 
   return res.json({ ok: true });
 });
 
 // POST /api/profile/video — Sube el video de presentación (campo "video").
-// Solo UNO por perfil: si ya había, el viejo se borra del disco.
+// Solo UNO por perfil: si ya había, el viejo se reemplaza en la DB.
 router.post('/video', auth, uploadVideo.single('video'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'NO_FILE' });
   }
 
-  const anterior = db
-    .prepare('SELECT profile_video FROM profiles WHERE user_id = ?')
-    .get(req.userId);
+  const filename = nombreArchivo('video', req.file.originalname);
+  db.prepare(
+    'UPDATE profiles SET profile_video = ?, profile_video_data = ?, profile_video_mime = ?, updated_at = ? WHERE user_id = ?'
+  ).run(filename, req.file.buffer, req.file.mimetype, new Date().toISOString(), req.userId);
 
-  db.prepare('UPDATE profiles SET profile_video = ?, updated_at = ? WHERE user_id = ?')
-    .run(req.file.filename, new Date().toISOString(), req.userId);
-
-  // Borra el video anterior para no acumular archivos huérfanos.
-  if (anterior && anterior.profile_video) {
-    try {
-      fs.unlinkSync(path.join(uploadsDir, anterior.profile_video));
-    } catch (e) {
-      // Ya no existía; no pasa nada.
-    }
-  }
-
-  return res.status(201).json({ videoUrl: '/uploads/' + req.file.filename });
+  return res.status(201).json({ videoUrl: '/uploads/' + filename });
 });
 
 // DELETE /api/profile/video — Borra el video de presentación propio.
@@ -383,14 +342,9 @@ router.delete('/video', auth, (req, res) => {
     return res.status(404).json({ error: 'VIDEO_NOT_FOUND' });
   }
 
-  db.prepare('UPDATE profiles SET profile_video = NULL, updated_at = ? WHERE user_id = ?')
-    .run(new Date().toISOString(), req.userId);
-
-  try {
-    fs.unlinkSync(path.join(uploadsDir, anterior.profile_video));
-  } catch (e) {
-    // El archivo ya no existía; igual borramos el registro.
-  }
+  db.prepare(
+    'UPDATE profiles SET profile_video = NULL, profile_video_data = NULL, profile_video_mime = NULL, updated_at = ? WHERE user_id = ?'
+  ).run(new Date().toISOString(), req.userId);
 
   return res.json({ ok: true });
 });

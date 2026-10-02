@@ -272,6 +272,50 @@ if (!columnasMessages.includes('audio_url')) {
   db.prepare('ALTER TABLE messages ADD COLUMN audio_url TEXT').run();
 }
 
+// --- Migración: fase 2 persistencia — archivos como BLOB en la DB ---------
+// El disco de Render es efímero; la DB se replica a R2 con Litestream.
+// Guardar los bytes en la DB hace que fotos, videos, selfies y notas de
+// voz sobrevivan reinicios y redeploys sin infraestructura nueva.
+const columnasPhotos = db
+  .prepare('PRAGMA table_info(photos)')
+  .all()
+  .map((c) => c.name);
+for (const [nombre, tipo] of Object.entries({ data: 'BLOB', mime: 'TEXT' })) {
+  if (!columnasPhotos.includes(nombre)) {
+    db.prepare(`ALTER TABLE photos ADD COLUMN ${nombre} ${tipo}`).run();
+  }
+}
+// Re-leer columnas de profiles (ya existe columnasProfiles arriba).
+const columnasProfiles2 = db
+  .prepare('PRAGMA table_info(profiles)')
+  .all()
+  .map((c) => c.name);
+for (const [nombre, tipo] of Object.entries({
+  profile_video_data: 'BLOB',
+  profile_video_mime: 'TEXT',
+})) {
+  if (!columnasProfiles2.includes(nombre)) {
+    db.prepare(`ALTER TABLE profiles ADD COLUMN ${nombre} ${tipo}`).run();
+  }
+}
+for (const [nombre, tipo] of Object.entries({
+  verification_data: 'BLOB',
+  verification_mime: 'TEXT',
+})) {
+  const cols = db
+    .prepare('PRAGMA table_info(users)')
+    .all()
+    .map((c) => c.name);
+  if (!cols.includes(nombre)) {
+    db.prepare(`ALTER TABLE users ADD COLUMN ${nombre} ${tipo}`).run();
+  }
+}
+for (const [nombre, tipo] of Object.entries({ audio_data: 'BLOB', audio_mime: 'TEXT' })) {
+  if (!columnasMessages.includes(nombre)) {
+    db.prepare(`ALTER TABLE messages ADD COLUMN ${nombre} ${tipo}`).run();
+  }
+}
+
 // --- Seed: 2 eventos de ejemplo si la tabla está vacía -------------------
 const conteoEventos = db.prepare('SELECT COUNT(*) AS n FROM events').get().n;
 if (conteoEventos === 0) {
