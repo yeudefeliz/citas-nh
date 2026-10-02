@@ -7,6 +7,37 @@
 set -e
 cd "$(dirname "$0")"
 
+# get_env: lee una variable de entorno tolerando espacios accidentales en el
+# NOMBRE (p. ej. "LITESTREAM_S3_ENDPOINT " con un espacio al final, que pasa
+# al copiar/pegar en el panel de Render) y limpiando espacios/saltos de línea
+# del VALOR. Si hay duplicados, prefiere el que tenga valor no vacío.
+# Nunca imprime secretos: solo se usan longitudes en el diagnóstico.
+get_env() {
+  local want="$1" line name rest clean_name clean_val fallback=""
+  while IFS= read -r line; do
+    case "$line" in *=*) ;; *) continue;; esac
+    name="${line%%=*}"
+    rest="${line#*=}"
+    clean_name="$(printf '%s' "$name" | tr -d '[:space:]')"
+    [ "$clean_name" = "$want" ] || continue
+    clean_val="$(printf '%s' "$rest" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    if [ -n "$clean_val" ]; then
+      printf '%s' "$clean_val"
+      return 0
+    fi
+    fallback="$clean_val"
+  done < <(env)
+  printf '%s' "$fallback"
+  return 0
+}
+
+# Normalizar las 4 variables antes de usarlas.
+LITESTREAM_S3_ENDPOINT="$(get_env LITESTREAM_S3_ENDPOINT)"
+LITESTREAM_BUCKET="$(get_env LITESTREAM_BUCKET)"
+LITESTREAM_KEY_ID="$(get_env LITESTREAM_KEY_ID)"
+LITESTREAM_KEY_SECRET="$(get_env LITESTREAM_KEY_SECRET)"
+export LITESTREAM_S3_ENDPOINT LITESTREAM_BUCKET LITESTREAM_KEY_ID LITESTREAM_KEY_SECRET
+
 BIN="./bin/litestream"
 
 # Diagnóstico seguro (sin imprimir secretos): longitudes y estado del binario.
