@@ -7,26 +7,35 @@
 set -e
 cd "$(dirname "$0")"
 
-# get_env: lee una variable de entorno tolerando espacios accidentales en el
-# NOMBRE (p. ej. "LITESTREAM_S3_ENDPOINT " con un espacio al final, que pasa
-# al copiar/pegar en el panel de Render) y limpiando espacios/saltos de línea
-# del VALOR. Si hay duplicados, prefiere el que tenga valor no vacío.
-# Nunca imprime secretos: solo se usan longitudes en el diagnóstico.
+# trim: quita espacios/saltos de línea/tab al inicio y final (puro bash,
+# maneja \n correctamente, cosa que sed por líneas no hace).
+trim() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
+
+# get_env: lee una variable de entorno tolerando espacios/saltos de línea
+# accidentales en el NOMBRE (p. ej. "LITESTREAM_S3_ENDPOINT " copiado del
+# panel) y en el VALOR (p. ej. un \n colado al pegar). Usa env -0 para que
+# valores con saltos de línea no se pierdan. Si hay duplicados, prefiere
+# el que tenga valor no vacío. Nunca imprime secretos.
 get_env() {
   local want="$1" line name rest clean_name clean_val fallback=""
-  while IFS= read -r line; do
+  while IFS= read -r -d '' line; do
     case "$line" in *=*) ;; *) continue;; esac
     name="${line%%=*}"
     rest="${line#*=}"
     clean_name="$(printf '%s' "$name" | tr -d '[:space:]')"
     [ "$clean_name" = "$want" ] || continue
-    clean_val="$(printf '%s' "$rest" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    clean_val="$(trim "$rest")"
     if [ -n "$clean_val" ]; then
       printf '%s' "$clean_val"
       return 0
     fi
     fallback="$clean_val"
-  done < <(env)
+  done < <(env -0)
   printf '%s' "$fallback"
   return 0
 }
@@ -36,6 +45,14 @@ LITESTREAM_S3_ENDPOINT="$(get_env LITESTREAM_S3_ENDPOINT)"
 LITESTREAM_BUCKET="$(get_env LITESTREAM_BUCKET)"
 LITESTREAM_KEY_ID="$(get_env LITESTREAM_KEY_ID)"
 LITESTREAM_KEY_SECRET="$(get_env LITESTREAM_KEY_SECRET)"
+
+# Respaldo: el endpoint de R2 no es un secreto (es el ID de cuenta dentro de
+# la URL pública). Si la variable llegó vacía al contenedor, usar el conocido
+# para no dejar la réplica muerta por un pegado fallido en el panel.
+if [ -z "$LITESTREAM_S3_ENDPOINT" ]; then
+  LITESTREAM_S3_ENDPOINT="https://6a47fadbb7a13ae60bb21831b6dc503c.r2.cloudflarestorage.com"
+  echo "[arranque] AVISO: LITESTREAM_S3_ENDPOINT vacío; usando endpoint de respaldo."
+fi
 export LITESTREAM_S3_ENDPOINT LITESTREAM_BUCKET LITESTREAM_KEY_ID LITESTREAM_KEY_SECRET
 
 BIN="./bin/litestream"
