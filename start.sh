@@ -9,6 +9,16 @@ cd "$(dirname "$0")"
 
 BIN="./bin/litestream"
 
+# Diagnóstico seguro (sin imprimir secretos): longitudes y estado del binario.
+if [ -x "$BIN" ]; then BIN_OK="OK"; else BIN_OK="FALTA"; fi
+echo "[arranque] chequeo litestream: endpoint_len=${#LITESTREAM_S3_ENDPOINT} bucket='${LITESTREAM_BUCKET}' binario=${BIN_OK} ($BIN)"
+
+# Si el binario no quedó instalado en el build, intentar descargarlo en arranque.
+if [ "$BIN_OK" = "FALTA" ]; then
+  echo "[arranque] Binario litestream ausente; intentando descarga en arranque..."
+  node scripts/install-litestream.js || true
+fi
+
 if [ -n "$LITESTREAM_S3_ENDPOINT" ] && [ -n "$LITESTREAM_BUCKET" ] && [ -x "$BIN" ]; then
   echo "[arranque] Litestream activado: restaurando DB desde la réplica..."
 

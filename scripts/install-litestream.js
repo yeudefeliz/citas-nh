@@ -18,6 +18,7 @@ if (process.platform !== 'linux' || process.arch !== 'x64') {
 }
 
 if (fs.existsSync(BIN_PATH)) {
+  try { fs.chmodSync(BIN_PATH, 0o755); } catch {}
   console.log('[litestream] Binario ya existe, se omite la descarga.');
   process.exit(0);
 }
