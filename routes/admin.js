@@ -394,4 +394,46 @@ router.post('/admin/verifications/:userId/reject', adminAuth, (req, res) => {
   return res.json({ ok: true });
 });
 
+// --- DELETE /api/admin/users/:id — Borra un usuario y todo lo suyo -------
+// (perfil, fotos del disco, selfie de verificación; las tablas hijas caen
+// por ON DELETE CASCADE). Solo para limpieza/moderación.
+router.delete('/admin/users/:id', adminAuth, (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  if (!Number.isInteger(userId)) return res.status(400).json({ error: 'BAD_ID' });
+  const u = db
+    .prepare('SELECT id, verification_photo FROM users WHERE id = ?')
+    .get(userId);
+  if (!u) return res.status(404).json({ error: 'NOT_FOUND' });
+  const fotos = db
+    .prepare('SELECT filename FROM photos WHERE user_id = ?')
+    .all(userId);
+  const perfil = db
+    .prepare('SELECT profile_video FROM profiles WHERE user_id = ?')
+    .get(userId);
+  db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  const uploadsDir = path.join(__dirname, '..', 'uploads');
+  for (const foto of fotos) {
+    try {
+      fs.unlinkSync(path.join(uploadsDir, path.basename(foto.filename)));
+    } catch (e) {
+      /* nada */
+    }
+  }
+  if (perfil && perfil.profile_video) {
+    try {
+      fs.unlinkSync(path.join(uploadsDir, path.basename(perfil.profile_video)));
+    } catch (e) {
+      /* nada */
+    }
+  }
+  if (u.verification_photo) {
+    try {
+      fs.unlinkSync(path.join(verifDir, path.basename(u.verification_photo)));
+    } catch (e) {
+      /* nada */
+    }
+  }
+  return res.json({ ok: true, deleted: userId });
+});
+
 module.exports = router;

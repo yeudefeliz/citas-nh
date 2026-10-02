@@ -321,7 +321,7 @@ async function renderDashboard() {
         <table class="admin-table">
           <thead><tr>
             <th>${at("colName")}</th><th>${at("colEmail")}</th>
-            <th>${at("colTown")}</th><th>${at("colPlan")}</th>
+            <th>${at("colTown")}</th><th>${at("colPlan")}</th><th></th>
           </tr></thead>
           <tbody>
             ${recent.users.map((u) => `
@@ -330,6 +330,7 @@ async function renderDashboard() {
                 <td class="muted small">${esc(u.email)}</td>
                 <td>${esc(u.town)}</td>
                 <td>${u.isPremium ? '<span class="tag tag-gold">👑 ' + at("planPremium") + "</span>" : '<span class="tag">' + at("planFree") + "</span>"}</td>
+                <td><button class="btn-mini-danger" data-del-user="${u.id}" title="Borrar usuario">🗑️</button></td>
               </tr>`).join("")}
           </tbody>
         </table>
@@ -381,6 +382,22 @@ async function renderDashboard() {
       try {
         await apiAdmin("/api/admin/verifications/" + btn.dataset.user + "/approve", { method: "POST" });
         alert(at("verifApproved"));
+        renderDashboard();
+      } catch (e) {
+        alert(at("generic"));
+        btn.disabled = false;
+      }
+    });
+  });
+
+  // Borrar usuario (limpieza/moderación): confirmación + DELETE + recarga.
+  document.querySelectorAll("[data-del-user]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const uid = btn.dataset.delUser;
+      if (!confirm("¿Borrar este usuario y todo lo suyo? / Delete this user and all their data?")) return;
+      btn.disabled = true;
+      try {
+        await apiAdmin("/api/admin/users/" + uid, { method: "DELETE" });
         renderDashboard();
       } catch (e) {
         alert(at("generic"));
