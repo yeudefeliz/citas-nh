@@ -155,10 +155,14 @@ function esc(s) {
 }
 
 // vBadge(): badge ✅ de perfil verificado, o aviso visible si no está verificado.
-function vBadge(isV) {
+// Si la cuenta es la del dueño/fundador, suma la insignia 👑 Fundador.
+function vBadge(isV, isO) {
+  const corona = isO
+    ? '<span class="verif-badge" title="👑 Fundador de Citas NH">👑</span>'
+    : '';
   return isV
-    ? '<span class="verif-badge" title="✅">✅</span>'
-    : `<span class="unverif-badge">⚠️ ${esc(t("unverified_badge"))}</span>`;
+    ? '<span class="verif-badge" title="✅">✅</span>' + corona
+    : `<span class="unverif-badge">⚠️ ${esc(t("unverified_badge"))}</span>` + corona;
 }
 
 // achEmoji(): emoji de cada logro para las medallas del perfil.
@@ -730,7 +734,7 @@ async function renderDiscover() {
       <article class="card">
         ${mediaHtml}
         <div class="card-body">
-          <h3>${esc(card.displayName)}, ${esc(card.age)} ${vBadge(card.isVerified)} ${boostTxt}</h3>
+          <h3>${esc(card.displayName)}, ${esc(card.age)} ${vBadge(card.isVerified, card.isOwner)} ${boostTxt}</h3>
           <p class="muted">${esc(card.town || "")}</p>
           ${presenceTxt ? `<p>${presenceTxt}</p>` : ""}
           ${distTxt}
@@ -1022,7 +1026,7 @@ async function loadTopPicks() {
             ? `<img class="pick-photo" src="${esc(photo)}" alt="">`
             : `<div class="pick-photo placeholder" aria-hidden="true">❤</div>`}
           <div class="pick-body">
-            <strong>${esc(p.displayName)}, ${esc(p.age)} ${vBadge(p.isVerified)}</strong>
+            <strong>${esc(p.displayName)}, ${esc(p.age)} ${vBadge(p.isVerified, p.isOwner)}</strong>
             ${data.premium ? `<span class="pick-premium">${t("toppicks_premium")}</span>` : ""}
             <p class="muted">${esc(p.town || "")}</p>
           </div>
@@ -1134,7 +1138,7 @@ async function openProfileViewer(userId) {
     <div class="modal profile-viewer" role="dialog" aria-modal="true">
       ${videoHtml}
       <div class="viewer-photos">${photosHtml || (videoHtml ? "" : `<div class="card-photo placeholder" aria-hidden="true">❤</div>`)}</div>
-      <h2>${esc(p.displayName)}, ${esc(p.age)} ${vBadge(p.isVerified)}</h2>
+      <h2>${esc(p.displayName)}, ${esc(p.age)} ${vBadge(p.isVerified, p.isOwner)}</h2>
       ${presenceTxt ? `<p>${presenceTxt}</p>` : ""}
       <p class="muted">${esc(p.town || "")}</p>
       ${p.bio ? `<p class="bio">${esc(p.bio)}</p>` : ""}
@@ -1203,7 +1207,7 @@ async function renderMatches() {
               : `<span class="avatar-fallback" aria-hidden="true">❤</span>`}
             </span>
             <span class="match-info">
-              <strong>${esc(a.displayName)}, ${esc(a.age)} ${vBadge(a.isVerified)}</strong>
+              <strong>${esc(a.displayName)}, ${esc(a.age)} ${vBadge(a.isVerified, a.isOwner)}</strong>
               <small class="muted">${esc(a.town || "")}</small>
               ${a.isSuper ? `<small class="super-badge">${t("superlike_badge")}</small>` : ""}
             </span>
@@ -1235,7 +1239,7 @@ async function renderMatches() {
               ? `<img src="${esc(photo)}" alt="">`
               : `<span class="avatar-fallback" aria-hidden="true">❤</span>`}
             <span class="match-info">
-              <strong>${esc(v.displayName)}, ${esc(v.age)} ${vBadge(v.isVerified)}</strong>
+              <strong>${esc(v.displayName)}, ${esc(v.age)} ${vBadge(v.isVerified, v.isOwner)}</strong>
               <small class="muted">${esc(v.town || "")}</small>
             </span>
             <span class="chev" aria-hidden="true">›</span>
@@ -1258,7 +1262,7 @@ async function renderMatches() {
               ? `<img src="${esc(photo)}" alt="">`
               : `<span class="avatar-fallback" aria-hidden="true">❤</span>`}
             <span class="match-info">
-              <strong>${esc(u.displayName)}, ${esc(u.age)} ${vBadge(u.isVerified)}</strong>
+              <strong>${esc(u.displayName)}, ${esc(u.age)} ${vBadge(u.isVerified, u.isOwner)}</strong>
               <small class="muted">${esc((m.lastMessage && m.lastMessage.text) || u.town || "")}</small>
               ${presenceHtml(u) ? `<small>${presenceHtml(u)}</small>` : ""}
             </span>
@@ -1359,7 +1363,7 @@ async function renderMatchmaker() {
               ? `<img src="${esc(photo)}" alt="">`
               : `<span class="avatar-fallback" aria-hidden="true">❤</span>`}
             <span class="match-info">
-              <strong>${esc(c.displayName)}, ${esc(c.age)} ${vBadge(c.isVerified)}</strong>
+              <strong>${esc(c.displayName)}, ${esc(c.age)} ${vBadge(c.isVerified, c.isOwner)}</strong>
               <small class="muted">${esc(c.town || "")}</small>
             </span>
           </label></li>`;
@@ -1636,7 +1640,7 @@ async function renderChat(matchId) {
       <div class="chat-header">
         <a class="btn btn-ghost btn-sm" href="#/matches" aria-label="${t("common_back")}">‹</a>
         <span class="chat-peer">
-          <strong class="chat-name">${esc(other.displayName || "")} ${vBadge(other.isVerified)}</strong>
+          <strong class="chat-name">${esc(other.displayName || "")} ${vBadge(other.isVerified, other.isOwner)}</strong>
           <span class="chat-presence" id="chat-presence">${presenceHtml(other)}</span>
         </span>
         <button class="btn btn-ghost btn-sm" id="chat-call" title="${esc(t("call_video"))}" aria-label="${esc(t("call_video"))}">📹</button>

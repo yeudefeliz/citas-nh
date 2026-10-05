@@ -54,6 +54,7 @@ router.get('/', auth, (req, res) => {
   const filas = db
     .prepare(
       `SELECT u.id, u.display_name, u.dob, u.zip, u.boost_until, u.is_verified,
+              u.is_owner,
               u.last_seen, u.invisible_mode,
               p.bio, p.gender, p.looking_for, p.languages, p.interests, p.town,
               p.profile_video
@@ -121,6 +122,7 @@ router.get('/', auth, (req, res) => {
         elegida.distancia === null ? null : Math.round(elegida.distancia),
       boosted: boostActivo(fila.boost_until, ahoraIso),
       isVerified: !!fila.is_verified,
+      isOwner: !!fila.is_owner,
       online: pres.online,
       lastSeen: pres.lastSeen,
     },

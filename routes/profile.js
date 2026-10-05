@@ -73,7 +73,7 @@ function armarPerfil(userId) {
   }
   const u = db
     .prepare(
-      'SELECT invisible_mode, verification_status, is_verified FROM users WHERE id = ?'
+      'SELECT invisible_mode, verification_status, is_verified, is_owner FROM users WHERE id = ?'
     )
     .get(userId);
   const fotos = db
@@ -105,6 +105,8 @@ function armarPerfil(userId) {
     invisibleMode: !!(u && u.invisible_mode),
     verificationStatus: (u && u.verification_status) || 'none',
     isVerified: !!(u && u.is_verified),
+    // Dueño/fundador de la app: insignia 👑 (público, como isVerified).
+    isOwner: !!(u && u.is_owner),
   };
 }
 

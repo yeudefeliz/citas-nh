@@ -238,6 +238,7 @@ const nuevasColumnasUsers = {
   invisible_mode: 'INTEGER NOT NULL DEFAULT 0',
   verification_status: "TEXT NOT NULL DEFAULT 'none'",
   is_verified: 'INTEGER NOT NULL DEFAULT 0',
+  is_owner: 'INTEGER NOT NULL DEFAULT 0',
   last_seen: 'TEXT',
 };
 for (const [nombre, tipo] of Object.entries(nuevasColumnasUsers)) {

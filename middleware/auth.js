@@ -13,6 +13,18 @@ try {
   db = null;
 }
 
+// Reconocimiento del dueño/fundador (ver utils/owner.js). También en
+// try/catch: si falla, la autenticación sigue normal.
+let asegurarDuenno = null;
+try {
+  asegurarDuenno = require('../utils/owner').asegurarDuenno;
+} catch (e) {
+  asegurarDuenno = null;
+}
+// Usuarios ya revisados en este proceso (el chequeo de dueño se hace
+// una vez por usuario por arranque; es idempotente).
+const duennoRevisado = new Set();
+
 // Bandera para mostrar el aviso del secreto solo una vez por arranque.
 let avisoMostrado = false;
 
@@ -72,6 +84,17 @@ function auth(req, res, next) {
         ).run(ahora, datos.userId, hace2min);
       } catch (e) {
         // Si falla, la petición sigue igual; no es crítico.
+      }
+    }
+
+    // Reconocimiento del dueño/fundador: la primera cuenta de la app
+    // queda verificada con insignia 👑 sin pasar por la revisión manual.
+    if (asegurarDuenno && !duennoRevisado.has(datos.userId)) {
+      duennoRevisado.add(datos.userId);
+      try {
+        asegurarDuenno(datos.userId);
+      } catch (e) {
+        // No es crítico; la petición sigue igual.
       }
     }
 
