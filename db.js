@@ -103,6 +103,18 @@ db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_views_day
     ON profile_views(viewer_id, viewed_id, date(created_at));
 
+  -- Visitas al blog público: qué página, IP, equipo y cuándo (pa' el panel admin).
+  CREATE TABLE IF NOT EXISTS blog_views (
+    id INTEGER PRIMARY KEY,
+    path TEXT NOT NULL,
+    lang TEXT DEFAULT 'es',
+    ip TEXT DEFAULT '',
+    ua TEXT DEFAULT '',
+    is_bot INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_blog_views_created ON blog_views(created_at);
+
   -- Señalización WebRTC para videollamadas (el chat usa polling).
   CREATE TABLE IF NOT EXISTS call_signals (
     id INTEGER PRIMARY KEY,

@@ -385,6 +385,63 @@ router.post('/admin/verifications/:userId/reject', adminAuth, (req, res) => {
   return res.json({ ok: true });
 });
 
+// --- GET /api/admin/blog-stats → visitas del blog público -------------------
+// Totales (sin bots), artículos más vistos y las últimas 25 visitas con
+// IP + equipo resumido, pa' ver quién lo vio y cuándo.
+function equipoDe(ua) {
+  const s = String(ua || '');
+  if (/bot|crawler|spider|uptimerobot|pingdom|headless|lighthouse/i.test(s)) return '🤖 Bot';
+  let so = 'Equipo';
+  if (/android/i.test(s)) so = '📱 Android';
+  else if (/iphone|ipad|ipod/i.test(s)) so = '📱 iPhone';
+  else if (/windows/i.test(s)) so = '💻 Windows';
+  else if (/macintosh|mac os/i.test(s)) so = '💻 Mac';
+  else if (/linux/i.test(s)) so = '💻 Linux';
+  let nav = '';
+  if (/edg\//i.test(s)) nav = 'Edge';
+  else if (/chrome/i.test(s)) nav = 'Chrome';
+  else if (/firefox/i.test(s)) nav = 'Firefox';
+  else if (/safari/i.test(s)) nav = 'Safari';
+  return nav ? `${so} · ${nav}` : so;
+}
+
+router.get('/admin/blog-stats', adminAuth, (req, res) => {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const hace7 = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+
+  const total = db.prepare('SELECT COUNT(*) AS n FROM blog_views WHERE is_bot = 0').get().n;
+  const today = db
+    .prepare('SELECT COUNT(*) AS n FROM blog_views WHERE is_bot = 0 AND date(created_at) = ?')
+    .get(hoy).n;
+  const week = db
+    .prepare('SELECT COUNT(*) AS n FROM blog_views WHERE is_bot = 0 AND date(created_at) >= ?')
+    .get(hace7).n;
+
+  const top = db
+    .prepare(
+      `SELECT path, COUNT(*) AS n FROM blog_views
+       WHERE is_bot = 0 GROUP BY path ORDER BY n DESC LIMIT 10`
+    )
+    .all()
+    .map((f) => ({ path: f.path, views: f.n }));
+
+  const recientes = db
+    .prepare(
+      `SELECT path, ip, ua, is_bot, created_at FROM blog_views
+       ORDER BY id DESC LIMIT 25`
+    )
+    .all()
+    .map((f) => ({
+      path: f.path,
+      ip: f.ip || '',
+      device: equipoDe(f.ua),
+      isBot: !!f.is_bot,
+      createdAt: f.created_at,
+    }));
+
+  return res.json({ total, today, week, top, recent: recientes });
+});
+
 // --- DELETE /api/admin/users/:id — Borra un usuario y todo lo suyo -------
 // (perfil, fotos, selfie, mensajes con sus blobs; las tablas hijas caen
 // por ON DELETE CASCADE). Solo para limpieza/moderación.

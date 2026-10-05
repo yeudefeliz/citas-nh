@@ -38,6 +38,18 @@ const ADMIN_STR = {
     revBoosts: "Boosts",
     revTotal: "Total estimado",
     perMonth: "/mes",
+    blogTitle: "Blog — visitas",
+    blogTotal: "Vistas totales",
+    blogToday: "Hoy",
+    blogWeek: "Últimos 7 días",
+    blogTop: "Lo más visto",
+    blogRecent: "Últimas visitas — quién lo vio",
+    blogColPage: "Página",
+    blogColViews: "Vistas",
+    blogColWho: "Quién (IP · equipo)",
+    blogColWhen: "Cuándo",
+    blogHome: "Portada del blog",
+    blogEmpty: "Todavía no hay visitas registradas. Comparte el blog y aquí verás quién entra.",
     usersTitle: "Usuarios recientes",
     colName: "Nombre",
     colEmail: "Correo",
@@ -94,6 +106,18 @@ const ADMIN_STR = {
     revBoosts: "Boosts",
     revTotal: "Estimated total",
     perMonth: "/mo",
+    blogTitle: "Blog — views",
+    blogTotal: "Total views",
+    blogToday: "Today",
+    blogWeek: "Last 7 days",
+    blogTop: "Most viewed",
+    blogRecent: "Latest views — who saw it",
+    blogColPage: "Page",
+    blogColViews: "Views",
+    blogColWho: "Who (IP · device)",
+    blogColWhen: "When",
+    blogHome: "Blog home",
+    blogEmpty: "No views recorded yet. Share the blog and you'll see who visits here.",
     usersTitle: "Recent users",
     colName: "Name",
     colEmail: "Email",
@@ -226,9 +250,9 @@ async function renderDashboard() {
   document.getElementById("app-title").textContent = at("title");
   root.innerHTML = `<h2>📊 ${at("dashboardTitle")}</h2><p class="muted">${at("loading")}</p>`;
 
-  let overview, usersSeries, activity, recent, revenue, byTown, verifPending;
+  let overview, usersSeries, activity, recent, revenue, byTown, verifPending, blogStats;
   try {
-    [overview, usersSeries, activity, recent, revenue, byTown, verifPending] = await Promise.all([
+    [overview, usersSeries, activity, recent, revenue, byTown, verifPending, blogStats] = await Promise.all([
       apiAdmin("/api/admin/overview"),
       apiAdmin("/api/admin/users?days=30"),
       apiAdmin("/api/admin/activity?days=30"),
@@ -236,6 +260,7 @@ async function renderDashboard() {
       apiAdmin("/api/admin/revenue"),
       apiAdmin("/api/admin/users-by-town"),
       apiAdmin("/api/admin/verifications/pending"),
+      apiAdmin("/api/admin/blog-stats"),
     ]);
   } catch (err) {
     // Token inválido o expirado → volver al login.
@@ -357,6 +382,44 @@ async function renderDashboard() {
           </tbody>
         </table>
       </div>
+    </div>
+
+    <div class="chart-card">
+      <h3>📝 ${at("blogTitle")}</h3>
+      <div class="admin-kpis">
+        <div class="kpi-card"><span class="kpi-num">${blogStats.total}</span><span class="kpi-label">👀 ${at("blogTotal")}</span></div>
+        <div class="kpi-card"><span class="kpi-num">${blogStats.today}</span><span class="kpi-label">📅 ${at("blogToday")}</span></div>
+        <div class="kpi-card"><span class="kpi-num">${blogStats.week}</span><span class="kpi-label">🗓️ ${at("blogWeek")}</span></div>
+      </div>
+      ${(blogStats.top || []).length === 0
+        ? `<p class="muted">${at("blogEmpty")}</p>`
+        : `<h4>${at("blogTop")}</h4>
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>${at("blogColPage")}</th><th>${at("blogColViews")}</th></tr></thead>
+          <tbody>
+            ${blogStats.top.map((x) => `
+              <tr>
+                <td>${x.path === "/blog" ? "🏠 " + at("blogHome") : esc(x.path.replace("/blog/", ""))}</td>
+                <td><b>${x.views}</b></td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+      <h4>${at("blogRecent")}</h4>
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>${at("blogColPage")}</th><th>${at("blogColWho")}</th><th>${at("blogColWhen")}</th></tr></thead>
+          <tbody>
+            ${(blogStats.recent || []).map((x) => `
+              <tr>
+                <td>${x.path === "/blog" ? "🏠 " + at("blogHome") : esc(x.path.replace("/blog/", ""))}</td>
+                <td class="muted small">${esc(x.ip)} · ${esc(x.device)}${x.isBot ? " 🤖" : ""}</td>
+                <td class="muted small">${esc(new Date(String(x.createdAt).replace(" ", "T") + "Z").toLocaleString())}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>`}
     </div>`;
 
   document.getElementById("admin-logout").addEventListener("click", () => {

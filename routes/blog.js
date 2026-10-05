@@ -7,6 +7,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const db = require('../db');
 
 const router = express.Router();
 
@@ -209,6 +210,21 @@ function page({ lang, title, description, canonical, ogType, jsonLd, body }) {
 </html>`;
 }
 
+// --- Registro de visitas (estadísticas del panel admin) -------------------
+// Guarda página, IP, equipo (user-agent) y hora. Nunca debe tumbar la
+// página: cualquier error de registro se ignora en silencio.
+const BOT_RE = /bot|crawler|spider|crawling|uptimerobot|pingdom|headless|lighthouse/i;
+function registrarVista(req, vistaPath, lang) {
+  try {
+    const fwd = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    const ip = fwd || req.ip || '';
+    const ua = String(req.headers['user-agent'] || '').slice(0, 300);
+    const isBot = BOT_RE.test(ua) ? 1 : 0;
+    db.prepare('INSERT INTO blog_views (path, lang, ip, ua, is_bot) VALUES (?, ?, ?, ?, ?)')
+      .run(vistaPath, lang, ip, ua, isBot);
+  } catch (e) { /* el registro es opcional; la página manda */ }
+}
+
 function getLang(req) {
   return req.query.lang === 'en' ? 'en' : 'es';
 }
@@ -216,6 +232,7 @@ function getLang(req) {
 // --- Rutas ----------------------------------------------------------------
 router.get('/', (req, res) => {
   const lang = getLang(req);
+  registrarVista(req, '/blog', lang);
   const t = T[lang];
   const articles = listArticles(lang);
   const cards = articles.map((a) => `
@@ -256,6 +273,7 @@ router.get('/:slug', (req, res) => {
   const t = T[lang];
   const a = parseArticle(req.params.slug, lang);
   if (!a) return res.status(404).send('Artículo no encontrado / Article not found');
+  registrarVista(req, '/blog/' + a.slug, lang);
 
   const canonical = `${BASE_URL}/blog/${a.slug}`;
   const jsonLd = JSON.stringify({
