@@ -1,5 +1,5 @@
 /* ============================================================
-   Citas NH — Admin: lógica de la página (100% independiente)
+   MTP — Admin: lógica de la página (100% independiente)
    ------------------------------------------------------------
    NO depende de public/js/app.js ni del i18n principal.
    Diccionario propio es/en con toggle en el header.
@@ -9,7 +9,7 @@
 /* ---------- 1. Idioma propio ---------- */
 const ADMIN_STR = {
   es: {
-    title: "Citas NH · Admin",
+    title: "MTP · Admin",
     loginTitle: "Acceso de administrador",
     keyLabel: "Clave de administrador",
     loginBtn: "Entrar",
@@ -77,7 +77,7 @@ const ADMIN_STR = {
     reason_UNDERAGE_SUSPECT: "Parece menor de edad",
   },
   en: {
-    title: "Citas NH · Admin",
+    title: "MTP · Admin",
     loginTitle: "Administrator access",
     keyLabel: "Admin key",
     loginBtn: "Sign in",

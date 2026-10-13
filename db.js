@@ -273,6 +273,32 @@ if (!columnasProfiles.includes('profile_video')) {
   db.prepare('ALTER TABLE profiles ADD COLUMN profile_video TEXT').run();
 }
 
+// --- Migración MTP (2026-10): "Mi tipo de persona" -----------------------
+// partner_interests: gustos que el usuario busca en su tipo de persona
+// (JSON, mismo formato y límites que interests). ALTER seguro: solo si falta.
+if (!columnasProfiles.includes('partner_interests')) {
+  db.prepare("ALTER TABLE profiles ADD COLUMN partner_interests TEXT DEFAULT '[]'").run();
+}
+
+// --- Migración MTP salud mental (2026-10) --------------------------------
+// mh_conditions: condición/lo que la persona QUIERE compartir (JSON, OPCIONAL).
+// support_needs: lo que necesita / le hace sentir bien (JSON).
+// mh_visibility: 'public' | 'after_match' (defecto) | 'hidden'.
+// Se re-lee PRAGMA porque columnasProfiles se capturó antes de otros ALTER.
+const columnasProfilesMH = db
+  .prepare('PRAGMA table_info(profiles)')
+  .all()
+  .map((c) => c.name);
+for (const [nombre, tipo] of Object.entries({
+  mh_conditions: "TEXT DEFAULT '[]'",
+  support_needs: "TEXT DEFAULT '[]'",
+  mh_visibility: "TEXT DEFAULT 'after_match'",
+})) {
+  if (!columnasProfilesMH.includes(nombre)) {
+    db.prepare(`ALTER TABLE profiles ADD COLUMN ${nombre} ${tipo}`).run();
+  }
+}
+
 // --- Migración: mensajes de voz y regalos (columnas type y audio_url) ----
 const columnasMessages = db
   .prepare('PRAGMA table_info(messages)')

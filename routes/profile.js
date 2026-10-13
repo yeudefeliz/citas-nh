@@ -58,7 +58,7 @@ const BUSCA = ['', 'mujeres', 'hombres', 'todos'];
 function armarPerfil(userId) {
   let p = db
     .prepare(
-      'SELECT bio, gender, looking_for, languages, interests, town, profile_video FROM profiles WHERE user_id = ?'
+      'SELECT bio, gender, looking_for, languages, interests, partner_interests, mh_conditions, support_needs, mh_visibility, town, profile_video FROM profiles WHERE user_id = ?'
     )
     .get(userId);
   if (!p) {
@@ -67,7 +67,7 @@ function armarPerfil(userId) {
     ).run(userId);
     p = db
       .prepare(
-        'SELECT bio, gender, looking_for, languages, interests, town, profile_video FROM profiles WHERE user_id = ?'
+        'SELECT bio, gender, looking_for, languages, interests, partner_interests, mh_conditions, support_needs, mh_visibility, town, profile_video FROM profiles WHERE user_id = ?'
       )
       .get(userId) || {};
   }
@@ -94,6 +94,11 @@ function armarPerfil(userId) {
     lookingFor: p.looking_for || '',
     languages: jsonSeguro(p.languages),
     interests: jsonSeguro(p.interests),
+    partnerInterests: jsonSeguro(p.partner_interests),
+    // Salud mental (OPCIONAL): lo que la persona decide compartir.
+    conditions: jsonSeguro(p.mh_conditions),
+    supportNeeds: jsonSeguro(p.support_needs),
+    conditionVisibility: p.mh_visibility || 'after_match',
     town: p.town || '',
     photos: fotos.map((f) => ({
       id: f.id,
@@ -183,6 +188,23 @@ router.get('/:userId', auth, (req, res) => {
   // le muestran a otros usuarios (isVerified sí es público: el badge ✅).
   delete p.invisibleMode;
   delete p.verificationStatus;
+  // Privacidad de salud mental: las condiciones solo se muestran según lo
+  // que eligió la persona: 'public' = en su perfil, 'after_match' = solo
+  // si hay match entre ambos, 'hidden' = nunca. Las necesidades de apoyo
+  // (supportNeeds) son preferencias de trato y sí se muestran.
+  if (otroId !== yo) {
+    let mostrar = p.conditionVisibility === 'public';
+    if (!mostrar && p.conditionVisibility === 'after_match') {
+      const hayMatch = db
+        .prepare(
+          `SELECT 1 FROM matches
+           WHERE (user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?)`
+        )
+        .get(yo, otroId, otroId, yo);
+      mostrar = !!hayMatch;
+    }
+    if (!mostrar) p.conditions = [];
+  }
   // Estado en línea: si el otro está en modo invisible, aparece desconectado.
   const pres = presencia(u.last_seen, u.invisible_mode);
   return res.json({
@@ -203,7 +225,7 @@ router.get('/:userId', auth, (req, res) => {
 // PUT /api/profile — Actualiza los campos del perfil (solo los enviados).
 // Todo se sanitiza: trim + límites de longitud.
 router.put('/', auth, (req, res) => {
-  const { bio, gender, lookingFor, languages, interests, town } = req.body || {};
+  const { bio, gender, lookingFor, languages, interests, partnerInterests, conditions, supportNeeds, conditionVisibility, town } = req.body || {};
   const cambios = {};
 
   if (bio !== undefined) {
@@ -256,6 +278,64 @@ router.put('/', auth, (req, res) => {
       limpios.push(t);
     }
     cambios.interests = JSON.stringify(limpios);
+  }
+
+  // "Mi tipo de persona": misma validación que interests (array, máx. 10,
+  // cada gusto limpio y de máx. 20 caracteres).
+  if (partnerInterests !== undefined) {
+    if (!Array.isArray(partnerInterests) || partnerInterests.length > 10) {
+      return res.status(400).json({ error: 'INVALID_PARTNER_INTERESTS' });
+    }
+    const limpios = [];
+    for (const interes of partnerInterests) {
+      const t = limpiarTexto(interes);
+      if (!t || t.length > 20) {
+        return res.status(400).json({ error: 'INVALID_PARTNER_INTERESTS' });
+      }
+      limpios.push(t);
+    }
+    cambios.partner_interests = JSON.stringify(limpios);
+  }
+
+  // Salud mental — condiciones (OPCIONAL): igual que interests pero cada
+  // valor puede medir hasta 40 caracteres (ej. "Sin condición — soy aliado/a").
+  if (conditions !== undefined) {
+    if (!Array.isArray(conditions) || conditions.length > 10) {
+      return res.status(400).json({ error: 'INVALID_CONDITIONS' });
+    }
+    const limpios = [];
+    for (const c of conditions) {
+      const t = limpiarTexto(c);
+      if (!t || t.length > 40) {
+        return res.status(400).json({ error: 'INVALID_CONDITIONS' });
+      }
+      limpios.push(t);
+    }
+    cambios.mh_conditions = JSON.stringify(limpios);
+  }
+
+  // Salud mental — lo que necesita / le hace sentir bien (OPCIONAL).
+  if (supportNeeds !== undefined) {
+    if (!Array.isArray(supportNeeds) || supportNeeds.length > 10) {
+      return res.status(400).json({ error: 'INVALID_SUPPORT_NEEDS' });
+    }
+    const limpios = [];
+    for (const n of supportNeeds) {
+      const t = limpiarTexto(n);
+      if (!t || t.length > 30) {
+        return res.status(400).json({ error: 'INVALID_SUPPORT_NEEDS' });
+      }
+      limpios.push(t);
+    }
+    cambios.support_needs = JSON.stringify(limpios);
+  }
+
+  // Salud mental — visibilidad de las condiciones.
+  if (conditionVisibility !== undefined) {
+    if (!['public', 'after_match', 'hidden'].includes(conditionVisibility)) {
+      return res.status(400).json({ error: 'INVALID_CONDITION_VISIBILITY' });
+    }
+    cambios.mh_visibility = conditionVisibility;
   }
 
   if (town !== undefined) {

@@ -1,5 +1,5 @@
 /* ============================================================
-   Citas NH — Lógica de la SPA (JavaScript vanilla, sin frameworks)
+   MTP — Mi Tipo de Persona — Lógica de la SPA (JavaScript vanilla, sin frameworks)
    ------------------------------------------------------------
    Cómo está organizado:
      1. Idioma (i18n): función t() y setLang()
@@ -158,7 +158,7 @@ function esc(s) {
 // Si la cuenta es la del dueño/fundador, suma la insignia 👑 Fundador.
 function vBadge(isV, isO) {
   const corona = isO
-    ? '<span class="verif-badge" title="👑 Fundador de Citas NH">👑</span>'
+    ? '<span class="verif-badge" title="👑 Fundador de MTP">👑</span>'
     : '';
   return isV
     ? '<span class="verif-badge" title="✅">✅</span>' + corona
@@ -710,7 +710,16 @@ async function renderDiscover() {
   const photo = card.photos && card.photos[0];
   const langs = (card.languages || []).map(esc).join(" · ");
   const interests = (card.interests || [])
-    .map((i) => `<span class="tag">${esc(i)}</span>`)
+    .map((i) => `<span class="tag">${esc(interestLabel(i))}</span>`)
+    .join("");
+  const partnerInterests = (card.partnerInterests || [])
+    .map((i) => `<span class="tag">${esc(interestLabel(i))}</span>`)
+    .join("");
+  const condTags = (card.conditions || [])
+    .map((i) => `<span class="tag">${esc(condLabel(i))}</span>`)
+    .join("");
+  const needTags = (card.supportNeeds || [])
+    .map((i) => `<span class="tag">${esc(needLabel(i))}</span>`)
     .join("");
   const distTxt = card.distanceMi !== null && card.distanceMi !== undefined
     ? `<p class="muted">📍 ${esc(t("discover_distance").replace("{n}", card.distanceMi))}</p>` : "";
@@ -741,6 +750,9 @@ async function renderDiscover() {
           ${card.bio ? `<p class="bio">${esc(card.bio)}</p>` : ""}
           ${langs ? `<p class="muted">🗣 ${langs}</p>` : ""}
           ${interests ? `<p class="interests-label">${t("discover_interests")}</p><div class="tags">${interests}</div>` : ""}
+          ${partnerInterests ? `<p class="interests-label">${t("profile_partnerLabel")}</p><div class="tags">${partnerInterests}</div>` : ""}
+          ${condTags ? `<p class="interests-label">💚 ${t("mh_sharedLabel")}</p><div class="tags">${condTags}</div>` : ""}
+          ${needTags ? `<p class="interests-label">🤲 ${t("mh_needsLabel")}</p><div class="tags">${needTags}</div>` : ""}
         </div>
       </article>
       <div class="vote-row">
@@ -1123,7 +1135,16 @@ async function openProfileViewer(userId) {
   }
   const langs = (p.languages || []).map(esc).join(" · ");
   const interests = (p.interests || [])
-    .map((i) => `<span class="tag">${esc(i)}</span>`)
+    .map((i) => `<span class="tag">${esc(interestLabel(i))}</span>`)
+    .join("");
+  const partnerInterests = (p.partnerInterests || [])
+    .map((i) => `<span class="tag">${esc(interestLabel(i))}</span>`)
+    .join("");
+  const condTags = (p.conditions || [])
+    .map((i) => `<span class="tag">${esc(condLabel(i))}</span>`)
+    .join("");
+  const needTags = (p.supportNeeds || [])
+    .map((i) => `<span class="tag">${esc(needLabel(i))}</span>`)
     .join("");
   const photosHtml = (p.photos || [])
     .map((f) => `<img src="${esc(f.url)}" alt="">`)
@@ -1144,6 +1165,9 @@ async function openProfileViewer(userId) {
       ${p.bio ? `<p class="bio">${esc(p.bio)}</p>` : ""}
       ${langs ? `<p class="muted">🗣 ${langs}</p>` : ""}
       ${interests ? `<p class="interests-label">${t("discover_interests")}</p><div class="tags">${interests}</div>` : ""}
+      ${partnerInterests ? `<p class="interests-label">${t("profile_partnerLabel")}</p><div class="tags">${partnerInterests}</div>` : ""}
+      ${condTags ? `<p class="interests-label">💚 ${t("mh_sharedLabel")}</p><div class="tags">${condTags}</div>` : ""}
+      ${needTags ? `<p class="interests-label">🤲 ${t("mh_needsLabel")}</p><div class="tags">${needTags}</div>` : ""}
       <button class="btn btn-primary" id="pv-close">${t("common_close")}</button>
     </div>`;
   document.body.appendChild(overlay);
@@ -2528,6 +2552,63 @@ function creditsCardHtml(cs) {
 }
 
 /* ----- #/perfil ----- */
+// Gustos predefinidos (MTP): value = texto CANÓNICO que se guarda en la DB
+// (siempre en español, así el match por gustos en común funciona en cualquier
+// idioma); la etiqueta visible sale de i18n (interest_<id>). Máx. 10 por grupo
+// y 20 caracteres por gusto: límites del backend (routes/profile.js).
+const INTEREST_OPTIONS = [
+  ["anime", "Anime"], ["videojuegos", "Videojuegos"], ["deportes", "Deportes"],
+  ["beisbol", "Béisbol"], ["baloncesto", "Baloncesto"], ["futbol", "Fútbol"],
+  ["musica", "Música"], ["baile", "Baile"], ["cine", "Cine y series"],
+  ["comida", "Comida dominicana"], ["cocina", "Cocina"], ["viajes", "Viajes"],
+  ["playa", "Playa"], ["naturaleza", "Naturaleza"], ["gym", "Gym"],
+  ["arte", "Arte"], ["lectura", "Lectura"], ["mascotas", "Mascotas"],
+  ["tecnologia", "Tecnología"], ["autos", "Autos"], ["familia", "Familia"],
+  ["fe", "Fe"], ["negocios", "Negocios"], ["fotografia", "Fotografía"], ["moda", "Moda"],
+];
+
+// Condiciones de salud mental (OPCIONALES) y necesidades de apoyo.
+// value = texto canónico en español que se guarda; etiqueta vía i18n.
+const CONDITION_OPTIONS = [
+  ["ansiedad", "Ansiedad"], ["depresion", "Depresión"], ["tdah", "TDAH"],
+  ["bipolar", "Trastorno bipolar"], ["tept", "TEPT"], ["toc", "TOC"],
+  ["autismo", "Autismo"], ["otra", "Otra"],
+  ["privado", "Prefiero contarlo en privado"], ["aliado", "Sin condición — soy aliado/a"],
+];
+const NEED_OPTIONS = [
+  ["paciencia", "Paciencia"], ["comunicacion", "Comunicación clara"],
+  ["despacio", "Ir despacio"], ["apoyo", "Apoyo sin juzgar"], ["rutinas", "Rutinas"],
+  ["espacio", "Espacio cuando lo pido"], ["humor", "Humor"], ["salidas", "Salidas tranquilas"],
+];
+const CONDITION_VISIBILITIES = ["public", "after_match", "hidden"];
+
+// labelFor(opciones, prefijo, valor): etiqueta localizada de un valor guardado.
+function labelFor(opciones, prefijo, v) {
+  const hit = opciones.find(([, val]) => val.toLowerCase() === String(v).toLowerCase());
+  return hit ? t(prefijo + hit[0]) : String(v);
+}
+function interestLabel(v) { return labelFor(INTEREST_OPTIONS, "interest_", v); }
+function condLabel(v) { return labelFor(CONDITION_OPTIONS, "cond_", v); }
+function needLabel(v) { return labelFor(NEED_OPTIONS, "need_", v); }
+
+// chipsHtml(name, seleccionados, opciones, prefijo): chips tocables (checkbox
+// estilo pastilla, reutiliza .check). Los valores guardados que NO están en
+// la lista se agregan como chips propios marcados: no se pierde ningún dato.
+function chipsHtml(name, seleccionados, opciones, prefijo) {
+  const sel = (seleccionados || []).map((v) => String(v));
+  const selLow = sel.map((v) => v.toLowerCase());
+  const canonLow = opciones.map(([, val]) => val.toLowerCase());
+  const chips = opciones.map(([id, val]) =>
+    `<label class="check"><input type="checkbox" name="${name}" value="${esc(val)}"${selLow.includes(val.toLowerCase()) ? " checked" : ""}> ${esc(t(prefijo + id))}</label>`).join("");
+  const custom = sel
+    .filter((v) => !canonLow.includes(v.toLowerCase()))
+    .map((v) => `<label class="check"><input type="checkbox" name="${name}" value="${esc(v)}" checked> ${esc(v)}</label>`).join("");
+  return chips + custom;
+}
+function interestChipsHtml(name, seleccionados) {
+  return chipsHtml(name, seleccionados, INTEREST_OPTIONS, "interest_");
+}
+
 const LANG_OPTIONS = ["es", "en", "pt", "fr", "other"]; // códigos de idioma
 const GENDERS = ["man", "woman", "nonbinary", "unspecified"];
 const LOOKINGS = ["friendship", "dating", "casual", "unsure"];
@@ -2544,7 +2625,7 @@ async function renderProfile() {
 
   let profile = {};
   try {
-    // GET /api/profile → {profile:{bio,gender,lookingFor,languages[],interests[],town,photos:[{id,url,position}]}}
+    // GET /api/profile → {profile:{bio,gender,lookingFor,languages[],interests[],partnerInterests[],town,photos:[...]}}
     profile = (await api("/api/profile")).profile || {};
   } catch (err) {
     app.innerHTML = errorHtml(err);
@@ -2621,7 +2702,6 @@ async function renderProfile() {
       </a>`;
 
   const langs = profile.languages || [];
-  const interests = (profile.interests || []).join(", ");
   const photos = profile.photos || [];
 
   // Créditos 💳 → GET /api/credits {credits, maxCredits, unlimited, refillInSec}
@@ -2702,9 +2782,38 @@ async function renderProfile() {
             ${LANG_OPTIONS.map((c) => `<label class="check"><input type="checkbox" name="lang" value="${c}"${langs.includes(c) ? " checked" : ""}> ${t("lang_" + c)}</label>`).join("")}
           </div>
         </fieldset>
-        <label>${t("profile_interests")} <small class="muted">(${t("profile_interestsHint")})</small>
-          <input name="interests" value="${esc(interests)}">
-        </label>
+        <fieldset>
+          <legend>${t("profile_interests")} <small class="muted">(${t("profile_interestsHint")})</small></legend>
+          <div class="checks">
+            ${interestChipsHtml("interest", profile.interests || [])}
+          </div>
+        </fieldset>
+        <fieldset class="partner-fieldset">
+          <legend>${t("profile_partnerTitle")}</legend>
+          <p class="muted small">${t("profile_partnerHint")}</p>
+          <div class="checks">
+            ${interestChipsHtml("partnerInterest", profile.partnerInterests || [])}
+          </div>
+        </fieldset>
+        <fieldset class="mh-fieldset">
+          <legend>💚 ${t("profile_conditionsTitle")}</legend>
+          <p class="muted small">${t("profile_conditionsHint")}</p>
+          <div class="checks">
+            ${chipsHtml("condition", profile.conditions || [], CONDITION_OPTIONS, "cond_")}
+          </div>
+          <label>${t("profile_visibility")}
+            <select name="conditionVisibility">
+              ${CONDITION_VISIBILITIES.map((v) => `<option value="${v}"${(profile.conditionVisibility || "after_match") === v ? " selected" : ""}>${t("vis_" + v)}</option>`).join("")}
+            </select>
+          </label>
+        </fieldset>
+        <fieldset class="mh-fieldset">
+          <legend>🤲 ${t("profile_needsTitle")}</legend>
+          <p class="muted small">${t("profile_needsHint")}</p>
+          <div class="checks">
+            ${chipsHtml("need", profile.supportNeeds || [], NEED_OPTIONS, "need_")}
+          </div>
+        </fieldset>
         <label>${t("profile_town")}
           <input name="town" value="${esc(profile.town || "")}" placeholder="Manchester">
         </label>
@@ -2850,7 +2959,7 @@ async function renderProfile() {
     });
   }
 
-  // Guardar → PUT /api/profile {bio,gender,lookingFor,languages[],interests[],town}
+  // Guardar → PUT /api/profile {bio,gender,lookingFor,languages[],interests[],partnerInterests[],town}
   document.getElementById("profile-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -2865,7 +2974,11 @@ async function renderProfile() {
           gender: fd.get("gender"),
           lookingFor: fd.get("lookingFor"),
           languages: fd.getAll("lang"),
-          interests: String(fd.get("interests")).split(",").map((s) => s.trim()).filter(Boolean),
+          interests: fd.getAll("interest"),
+          partnerInterests: fd.getAll("partnerInterest"),
+          conditions: fd.getAll("condition"),
+          supportNeeds: fd.getAll("need"),
+          conditionVisibility: fd.get("conditionVisibility"),
           town: String(fd.get("town")).trim(),
         }),
       });

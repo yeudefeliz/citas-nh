@@ -8,7 +8,7 @@
     "stripe": "^17.0.0",
     "web-push": "^3.6.7"
   },
-  "description": "Backend MVP de Citas NH - app de citas para hispanohablantes en New Hampshire",
+  "description": "Backend MVP de MTP — Mi Tipo de Persona (antes Citas NH) - app de citas para hispanohablantes en New Hampshire",
   "license": "UNLICENSED",
   "main": "server.js",
   "name": "citas-nh",

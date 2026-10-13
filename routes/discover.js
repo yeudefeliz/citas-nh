@@ -56,7 +56,7 @@ router.get('/', auth, (req, res) => {
       `SELECT u.id, u.display_name, u.dob, u.zip, u.boost_until, u.is_verified,
               u.is_owner,
               u.last_seen, u.invisible_mode,
-              p.bio, p.gender, p.looking_for, p.languages, p.interests, p.town,
+              p.bio, p.gender, p.looking_for, p.languages, p.interests, p.partner_interests, p.mh_conditions, p.support_needs, p.mh_visibility, p.town,
               p.profile_video
        FROM users u
        JOIN profiles p ON p.user_id = u.id
@@ -116,6 +116,13 @@ router.get('/', auth, (req, res) => {
       lookingFor: fila.looking_for || '',
       languages: JSON.parse(fila.languages || '[]'),
       interests: JSON.parse(fila.interests || '[]'),
+      partnerInterests: JSON.parse(fila.partner_interests || '[]'),
+      // En Descubrir aún NO hay match: las condiciones solo salen si la
+      // persona eligió compartirlas en público. Las necesidades de apoyo
+      // (cómo tratarla bien) sí se muestran, con respeto.
+      conditions:
+        fila.mh_visibility === 'public' ? JSON.parse(fila.mh_conditions || '[]') : [],
+      supportNeeds: JSON.parse(fila.support_needs || '[]'),
       photos: urlsFotos(fila.id),
       videoUrl: fila.profile_video ? '/uploads/' + fila.profile_video : null,
       distanceMi:
