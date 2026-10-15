@@ -2,20 +2,20 @@
    Citas NH — Admin: estilos propios (identidad rosada de la marca)
    ============================================================ */
 :root {
-  --brand: #ff2e63;
-  --brand-2: #ff6b6b;
-  --brand-dark: #c81e4e;
-  --grad: linear-gradient(135deg, #ff2e63 0%, #ff5e7e 55%, #ff6b6b 100%);
-  --grad-gold: linear-gradient(135deg, #ffd166 0%, #f59e0b 60%, #f97316 100%);
-  --bg-1: #fff5f7;
-  --bg-2: #ffeef3;
+  --brand: #2563eb;
+  --brand-2: #4da3ff;
+  --brand-dark: #1d4ed8;
+  --grad: linear-gradient(135deg, #2563eb 0%, #3b8bff 55%, #4da3ff 100%);
+  --grad-gold: linear-gradient(135deg, #8ec5ff 0%, #0ea5e9 60%, #f97316 100%);
+  --bg-1: #eef4fe;
+  --bg-2: #e3eefc;
   --card: #ffffff;
   --ink: #2b2230;
   --muted: #7c7480;
   --line: #f6dfe6;
   --radius: 20px;
-  --shadow-card: 0 18px 44px rgba(255, 46, 99, .16), 0 4px 12px rgba(43, 34, 48, .08);
-  --shadow-pop: 0 10px 26px rgba(255, 46, 99, .38);
+  --shadow-card: 0 18px 44px rgba(37, 99, 235, .16), 0 4px 12px rgba(15, 23, 42, .08);
+  --shadow-pop: 0 10px 26px rgba(37, 99, 235, .38);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -29,8 +29,8 @@ body {
   min-height: 100dvh;
   padding-bottom: 40px;
   background:
-    radial-gradient(420px 300px at 110% -40px, rgba(255, 46, 99, .14), transparent 60%),
-    radial-gradient(380px 280px at -20% 30%, rgba(255, 107, 107, .12), transparent 60%),
+    radial-gradient(420px 300px at 110% -40px, rgba(37, 99, 235, .14), transparent 60%),
+    radial-gradient(380px 280px at -20% 30%, rgba(77, 163, 255, .12), transparent 60%),
     linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%);
   background-attachment: fixed;
 }
@@ -46,7 +46,7 @@ body {
   background: var(--grad);
   color: #fff;
   padding: 14px 16px;
-  box-shadow: 0 6px 20px rgba(255, 46, 99, .35);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, .35);
 }
 
 #topbar h1 {
@@ -100,7 +100,7 @@ body {
   height: 6px;
   background: var(--grad);
 }
-.auth-heart { font-size: 3rem; text-align: center; filter: drop-shadow(0 6px 14px rgba(255, 46, 99, .45)); }
+.auth-heart { font-size: 3rem; text-align: center; filter: drop-shadow(0 6px 14px rgba(37, 99, 235, .45)); }
 .auth-card h2 { text-align: center; }
 
 label { display: block; font-weight: 700; font-size: .92rem; margin: 16px 0 7px; }
@@ -119,7 +119,7 @@ input {
 input:focus {
   outline: none;
   border-color: var(--brand);
-  box-shadow: 0 0 0 4px rgba(255, 46, 99, .16), 0 6px 16px rgba(255, 46, 99, .1);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, .16), 0 6px 16px rgba(37, 99, 235, .1);
 }
 
 .btn {
@@ -146,7 +146,7 @@ input:focus {
   background: rgba(255, 255, 255, .9);
   color: var(--brand-dark);
   border: 1.5px solid var(--line);
-  box-shadow: 0 4px 12px rgba(255, 46, 99, .08);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, .08);
   min-height: 40px;
   padding: 8px 16px;
   font-size: .88rem;
@@ -154,9 +154,9 @@ input:focus {
 .btn-ghost:hover { border-color: var(--brand); }
 
 .form-error {
-  background: #fef2f2;
-  color: #b91c1c;
-  border: 1px solid #fecaca;
+  background: #eff6ff;
+  color: #1e3a8a;
+  border: 1px solid #bfdbfe;
   border-radius: 14px;
   padding: 12px 16px;
   font-size: .92rem;
@@ -251,8 +251,8 @@ table.admin-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 }
 .tag-gold {
   background: var(--grad-gold);
-  color: #5b3a05;
-  box-shadow: 0 4px 12px rgba(245, 158, 11, .4);
+  color: #173a6b;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, .4);
 }
 
 /* Cola de verificación de selfies */
@@ -278,5 +278,5 @@ table.admin-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .verif-reason { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); font-size: .85rem; }
 .btn-sm { padding: 6px 12px; font-size: .85rem; }
 .btn-mini-danger { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; cursor: pointer; font-size: 1rem; }
-.btn-mini-danger:hover { background: #fee2e2; border-color: #ef4444; }
+.btn-mini-danger:hover { background: #dbeafe; border-color: #3b82f6; }
 .btn-mini-danger:disabled { opacity: .5; cursor: default; }

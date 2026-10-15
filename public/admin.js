@@ -323,7 +323,7 @@ async function renderDashboard() {
     <div class="chart-card">
       <h3>${at("chartActivity")}</h3>
       <div class="chart-legend">
-        <span><i style="background:#ff2e63"></i>${at("legendLikes")}</span>
+        <span><i style="background:#2563eb"></i>${at("legendLikes")}</span>
         <span><i style="background:#8b5cf6"></i>${at("legendMatches")}</span>
         <span><i style="background:#3b82f6"></i>${at("legendMessages")}</span>
       </div>
@@ -490,9 +490,9 @@ async function renderDashboard() {
 
   // Las gráficas se dibujan cuando el canvas ya tiene tamaño.
   requestAnimationFrame(() => {
-    drawBars(document.getElementById("ch-signups"), usersSeries.series, "#ff2e63");
+    drawBars(document.getElementById("ch-signups"), usersSeries.series, "#2563eb");
     drawLines(document.getElementById("ch-activity"), [
-      { series: activity.likes, color: "#ff2e63" },
+      { series: activity.likes, color: "#2563eb" },
       { series: activity.matches, color: "#8b5cf6" },
       { series: activity.messages, color: "#3b82f6" },
     ]);
@@ -524,7 +524,7 @@ function drawAxes(ctx, w, h, max, n) {
     const v = Math.round((max * i) / 4);
     const y = py(v);
     ctx.fillText(String(v), padL - 6, y + 3);
-    ctx.strokeStyle = "rgba(43,34,48,.07)";
+    ctx.strokeStyle = "rgba(15,23,42,.07)";
     ctx.beginPath();
     ctx.moveTo(padL, y);
     ctx.lineTo(w - 8, y);
@@ -623,8 +623,8 @@ function drawTownBars(canvas, towns) {
     ctx.fillText(String(t.town).slice(0, 17), padL - 8, y + rowH / 2 + 4);
     const bw = ((w - padL - padR - 70) * t.count) / max;
     const g = ctx.createLinearGradient(padL, 0, padL + Math.max(bw, 1), 0);
-    g.addColorStop(0, "#ff2e63");
-    g.addColorStop(1, "#ff2e6366");
+    g.addColorStop(0, "#2563eb");
+    g.addColorStop(1, "#2563eb66");
     ctx.fillStyle = g;
     const bh = Math.min(rowH - 8, 18);
     const by = y + (rowH - bh) / 2;

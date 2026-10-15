@@ -320,7 +320,7 @@ function confettiBurst() {
   canvas.height = window.innerHeight;
   layer.appendChild(canvas);
   const ctx = canvas.getContext("2d");
-  const colors = ["#ff2e63", "#ff6b6b", "#ffd166", "#f59e0b", "#ffffff", "#ff9ec7"];
+  const colors = ["#2563eb", "#4da3ff", "#8ec5ff", "#0ea5e9", "#ffffff", "#a5d8ff"];
   const parts = [];
   for (let i = 0; i < 130; i++) {
     parts.push({
