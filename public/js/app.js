@@ -562,7 +562,7 @@ function renderRegister() {
             <input type="date" name="dob" required>
           </label>
           <label>${t("register_zip")}
-            <input type="text" name="zip" required inputmode="numeric" maxlength="10" autocomplete="postal-code">
+            <input type="text" name="zip" required maxlength="10" autocomplete="postal-code">
           </label>
           <button type="submit" class="btn btn-primary">${t("register_submit")}</button>
         </form>

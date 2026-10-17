@@ -10,8 +10,8 @@
 window.I18N = {
   // ---- Generales ----
   appName: "MTP",
-  seo_title: "MTP — Mi Tipo de Persona | Citas en Manchester, NH",
-  seo_description: "MTP — Mi Tipo de Persona · Citas en Manchester, NH para personas con condiciones de salud mental: un espacio seguro, sin juzgar, a tu ritmo. Regístrate gratis.",
+  seo_title: "MTP — Mi Tipo de Persona | Conoce gente real, estés donde estés",
+  seo_description: "MTP — Mi Tipo de Persona · Conoce gente real en cualquier país: un espacio seguro para personas con condiciones de salud mental, sin juzgar, a tu ritmo. Regístrate gratis.",
   nav_discover: "Descubrir",
   nav_matches: "Matches",
   nav_profile: "Perfil",
@@ -168,7 +168,7 @@ window.I18N = {
   need_humor: "Humor",
   need_salidas: "Salidas tranquilas",
 
-  profile_town: "Pueblo / Ciudad (NH)",
+  profile_town: "Pueblo / Ciudad",
   profile_photos: "Fotos (máx. 3)",
   profile_addPhoto: "Agregar foto",
   profile_saved: "Perfil guardado ✅",
@@ -217,7 +217,7 @@ window.I18N = {
   premium_ctaShort: "Ver planes",
   premium_f1: "Mira quién te dio like",
   premium_f2: "Likes ilimitados",
-  premium_f3: "Apoya una app hecha para Manchester",
+  premium_f3: "Apoya una app hecha para gente real, sin juzgar",
   premium_price: "$4.99/mes · cancela cuando quieras",
   premium_note: "Pago seguro con Stripe. Se renueva cada mes.",
   premium_success: "¡Pago exitoso! Bienvenido a Premium 👑",
@@ -340,7 +340,7 @@ window.I18N = {
 
   // ---- Eventos ----
   nav_events: "Eventos",
-  events_title: "Eventos en NH",
+  events_title: "Eventos",
   events_new: "Crear evento",
   events_title_label: "Título",
   events_desc_label: "Descripción",
@@ -403,7 +403,7 @@ window.I18N = {
   referral_copied: "¡Enlace copiado! 📋",
   referral_joined: "{n} amigos se unieron",
   referral_bonus: "Tienes {n} super likes extra ⭐",
-  referral_shareText: "¡Únete a MTP — Mi Tipo de Persona, la app de citas de Manchester, NH! Regístrate con mi código:",
+  referral_shareText: "¡Únete a MTP — Mi Tipo de Persona, la app para conocer gente real, estés donde estés! Regístrate con mi código:",
   register_invited: "🎁 Llegaste con el código de un amigo",
 
   // ---- Top Picks ----
@@ -489,7 +489,7 @@ window.I18N = {
   // ---- Mapa ----
   nav_map: "Mapa",
   map_title: "Solteros cerca",
-  map_desc: "Mira dónde hay más gente de MTP en Manchester 🗺️",
+  map_desc: "Mira dónde hay más gente de MTP cerca de ti 🗺️",
   map_popup: "👥 {n} cerca de {town}",
   map_empty: "Todavía no hay solteros activos en el mapa. ¡Invita a tus panas! 📣",
   map_fail: "No se pudo cargar el mapa. Revisa tu conexión.",

@@ -9,8 +9,8 @@
 window.I18N_EN = {
   // ---- General ----
   appName: "MTP",
-  seo_title: "MTP — My Type of Person | Dating in Manchester, NH",
-  seo_description: "MTP — My Type of Person · Dating in Manchester, NH for people with mental health conditions: a safe space, no judgment, at your pace. Sign up free.",
+  seo_title: "MTP — My Type of Person | Meet real people, wherever you are",
+  seo_description: "MTP — My Type of Person · Meet real people in any country: a safe space for people with mental health conditions, no judgment, at your pace. Sign up free.",
   nav_discover: "Discover",
   nav_matches: "Matches",
   nav_profile: "Profile",
@@ -167,7 +167,7 @@ window.I18N_EN = {
   need_humor: "Humor",
   need_salidas: "Calm outings",
 
-  profile_town: "Town / City (NH)",
+  profile_town: "Town / City",
   profile_photos: "Photos (max 3)",
   profile_addPhoto: "Add photo",
   profile_saved: "Profile saved ✅",
@@ -216,7 +216,7 @@ window.I18N_EN = {
   premium_ctaShort: "See plans",
   premium_f1: "See who liked you",
   premium_f2: "Unlimited likes",
-  premium_f3: "Support an app made for Manchester",
+  premium_f3: "Support an app made for real people, no judgment",
   premium_price: "$4.99/mo · cancel anytime",
   premium_note: "Secure payment with Stripe. Renews monthly.",
   premium_success: "Payment successful! Welcome to Premium 👑",
@@ -339,7 +339,7 @@ window.I18N_EN = {
 
   // ---- Events ----
   nav_events: "Events",
-  events_title: "NH events",
+  events_title: "Events",
   events_new: "Create event",
   events_title_label: "Title",
   events_desc_label: "Description",
@@ -402,7 +402,7 @@ window.I18N_EN = {
   referral_copied: "Link copied! 📋",
   referral_joined: "{n} friends joined",
   referral_bonus: "You have {n} extra super likes ⭐",
-  referral_shareText: "Join MTP — My Type of Person, the Manchester, NH dating app! Sign up with my code:",
+  referral_shareText: "Join MTP — My Type of Person, the app to meet real people, wherever you are! Sign up with my code:",
   register_invited: "🎁 You arrived with a friend's code",
 
   // ---- Top Picks ----
@@ -488,7 +488,7 @@ window.I18N_EN = {
   // ---- Map ----
   nav_map: "Map",
   map_title: "Singles nearby",
-  map_desc: "See where MTP people are in Manchester 🗺️",
+  map_desc: "See where MTP people are near you 🗺️",
   map_popup: "👥 {n} near {town}",
   map_empty: "No active singles on the map yet. Invite your friends! 📣",
   map_fail: "Couldn't load the map. Check your connection.",

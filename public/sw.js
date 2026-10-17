@@ -2,12 +2,12 @@
    Citas NH — Service Worker (PWA)
    ------------------------------------------------------------
    Estrategia simple:
-   - Al instalarse, guarda el "app shell" en caché (versión citasnh-v2).
+   - Al instalarse, guarda el "app shell" en caché (versión citasnh-v3).
    - Las llamadas a /api/* SIEMPRE van a la red (datos en vivo).
    - Lo demás: primero caché, si no está va a la red y lo guarda.
    - Al activarse una versión nueva, borra cachés viejos.
    ============================================================ */
-const CACHE = "citasnh-v2";
+const CACHE = "citasnh-v3";
 
 // Archivos que forman la app (se guardan para usar sin conexión).
 const SHELL = [
